@@ -109,3 +109,115 @@ def test_bridge_invoke_file_ops(tmp_path: Path) -> None:
         nodes = list_resp.json()["result"]
         assert isinstance(nodes, list)
         assert any(node["name"] == "notes.md" for node in nodes)
+
+
+def test_bridge_project_copy_vector_and_file_endpoint(tmp_path: Path) -> None:
+    parent = tmp_path / "workspace"
+    parent.mkdir(parents=True, exist_ok=True)
+    source_dir = tmp_path / "source_dir"
+    source_dir.mkdir(parents=True, exist_ok=True)
+    source_file = source_dir / "doc.txt"
+    source_file.write_text("alpha beta gamma", encoding="utf-8")
+
+    with TestClient(app) as client:
+        create_resp = client.post(
+            "/api/bridge/invoke",
+            json={
+                "command": "create_project",
+                "args": {"name": "demo", "path": str(parent)},
+            },
+        )
+        assert create_resp.status_code == 200
+        project = create_resp.json()["result"]
+        assert project["name"] == "demo"
+        assert project["path"].endswith("/demo")
+
+        open_resp = client.post(
+            "/api/bridge/invoke",
+            json={"command": "open_project", "args": {"path": project["path"]}},
+        )
+        assert open_resp.status_code == 200
+
+        copy_dir_resp = client.post(
+            "/api/bridge/invoke",
+            json={
+                "command": "copy_directory",
+                "args": {
+                    "source": str(source_dir),
+                    "destination": f"{project['path']}/raw/sources/imported",
+                },
+            },
+        )
+        assert copy_dir_resp.status_code == 200
+        copied = copy_dir_resp.json()["result"]
+        assert len(copied) == 1
+        assert copied[0].endswith("/raw/sources/imported/doc.txt")
+
+        preprocess_resp = client.post(
+            "/api/bridge/invoke",
+            json={"command": "preprocess_file", "args": {"path": copied[0]}},
+        )
+        assert preprocess_resp.status_code == 200
+        assert preprocess_resp.json()["result"].endswith("/.cache/doc.txt.txt")
+
+        related_file = Path(project["path"]) / "wiki" / "sources" / "doc.md"
+        related_file.parent.mkdir(parents=True, exist_ok=True)
+        related_file.write_text('sources: ["doc.txt"]\n# doc', encoding="utf-8")
+        related_resp = client.post(
+            "/api/bridge/invoke",
+            json={
+                "command": "find_related_wiki_pages",
+                "args": {"projectPath": project["path"], "sourceName": "doc.txt"},
+            },
+        )
+        assert related_resp.status_code == 200
+        assert len(related_resp.json()["result"]) >= 1
+
+        upsert_resp = client.post(
+            "/api/bridge/invoke",
+            json={
+                "command": "vector_upsert",
+                "args": {
+                    "projectPath": project["path"],
+                    "pageId": "p1",
+                    "embedding": [1.0, 0.0, 0.0],
+                },
+            },
+        )
+        assert upsert_resp.status_code == 200
+        count_resp = client.post(
+            "/api/bridge/invoke",
+            json={"command": "vector_count", "args": {"projectPath": project["path"]}},
+        )
+        assert count_resp.status_code == 200
+        assert count_resp.json()["result"] == 1
+
+        search_resp = client.post(
+            "/api/bridge/invoke",
+            json={
+                "command": "vector_search",
+                "args": {
+                    "projectPath": project["path"],
+                    "queryEmbedding": [1.0, 0.0, 0.0],
+                    "topK": 3,
+                },
+            },
+        )
+        assert search_resp.status_code == 200
+        assert search_resp.json()["result"][0]["page_id"] == "p1"
+
+        delete_vec_resp = client.post(
+            "/api/bridge/invoke",
+            json={
+                "command": "vector_delete",
+                "args": {"projectPath": project["path"], "pageId": "p1"},
+            },
+        )
+        assert delete_vec_resp.status_code == 200
+
+        file_get_resp = client.get(
+            "/api/bridge/file",
+            params={"path": str(source_file)},
+        )
+        assert file_get_resp.status_code == 200
+        assert "alpha beta gamma" in file_get_resp.text
