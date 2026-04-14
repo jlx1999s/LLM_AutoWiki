@@ -221,3 +221,32 @@ def test_bridge_project_copy_vector_and_file_endpoint(tmp_path: Path) -> None:
         )
         assert file_get_resp.status_code == 200
         assert "alpha beta gamma" in file_get_resp.text
+
+
+def test_bridge_resolve_path_supports_relative(tmp_path: Path) -> None:
+    base = tmp_path / "base"
+    base.mkdir(parents=True, exist_ok=True)
+    file_path = base / "a.txt"
+    file_path.write_text("ok", encoding="utf-8")
+
+    with TestClient(app) as client:
+        root_resp = client.post(
+            "/api/bridge/invoke",
+            json={"command": "project_root", "args": {}},
+        )
+        assert root_resp.status_code == 200
+        assert isinstance(root_resp.json()["result"], str)
+
+        resolve_resp = client.post(
+            "/api/bridge/invoke",
+            json={
+                "command": "resolve_path",
+                "args": {
+                    "path": "a.txt",
+                    "base": str(base),
+                    "must_exist": True,
+                },
+            },
+        )
+        assert resolve_resp.status_code == 200
+        assert resolve_resp.json()["result"].endswith("/a.txt")

@@ -7,13 +7,29 @@ import socket
 from pathlib import Path
 from typing import Any
 
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
-def _norm(path: str) -> Path:
-    return Path(path).expanduser().resolve()
+def _norm(path: str, base: str | None = None) -> Path:
+    p = Path(path).expanduser()
+    if not p.is_absolute():
+        base_path = Path(base).expanduser() if base else PROJECT_ROOT
+        p = base_path / p
+    return p.resolve()
 
 
 def _to_posix(path: Path) -> str:
     return str(path).replace("\\", "/")
+
+
+def project_root() -> str:
+    return _to_posix(PROJECT_ROOT)
+
+
+def resolve_path(path: str, base: str | None = None, must_exist: bool = False) -> str:
+    p = _norm(path, base=base)
+    if must_exist and not p.exists():
+        raise FileNotFoundError(f"Path not found: {p}")
+    return _to_posix(p)
 
 
 def read_file(path: str) -> str:
@@ -211,6 +227,8 @@ def vector_count(projectPath: str) -> int:
 
 
 COMMAND_MAP = {
+    "project_root": project_root,
+    "resolve_path": resolve_path,
     "read_file": read_file,
     "write_file": write_file,
     "list_directory": list_directory,
@@ -235,4 +253,3 @@ def invoke_command(command: str, args: dict[str, Any]) -> Any:
     if fn is None:
         raise ValueError(f"Unsupported command: {command}")
     return fn(**args)
-
