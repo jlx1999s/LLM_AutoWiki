@@ -58,14 +58,15 @@ export function CreateProjectDialog({ open: isOpen, onOpenChange, onCreated }: C
   }
 
   async function handleCreate() {
-    if (!name.trim() || !path.trim()) {
-      setError("Name and path are required")
+    if (!name.trim()) {
+      setError("Project name is required")
       return
     }
     setCreating(true)
     setError("")
     try {
-      const project = await createProject(name.trim(), path.trim())
+      const parentPath = path.trim() || "projects"
+      const project = await createProject(name.trim(), parentPath)
       const pp = normalizePath(project.path)
 
       const template = getTemplate(selectedTemplate)
@@ -105,7 +106,13 @@ export function CreateProjectDialog({ open: isOpen, onOpenChange, onCreated }: C
           <div className="flex flex-col gap-2">
             <Label htmlFor="path">Parent Directory</Label>
             <div className="flex gap-2">
-              <Input id="path" value={path} onChange={(e) => setPath(e.target.value)} placeholder="/Users/you/projects" className="flex-1" />
+              <Input
+                id="path"
+                value={path}
+                onChange={(e) => setPath(e.target.value)}
+                placeholder="(optional) defaults to projects/"
+                className="flex-1"
+              />
               <Button variant="outline" size="icon" onClick={handleBrowse} type="button">
                 <FolderOpen className="h-4 w-4" />
               </Button>
