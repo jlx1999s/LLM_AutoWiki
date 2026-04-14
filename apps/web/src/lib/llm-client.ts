@@ -26,6 +26,13 @@ export async function streamChat(
 ): Promise<void> {
   const { onToken, onDone, onError } = callbacks
   const providerConfig = getProviderConfig(config)
+  const endpointHost = (() => {
+    try {
+      return new URL(providerConfig.url).host
+    } catch {
+      return providerConfig.url
+    }
+  })()
 
   // Create a combined signal: user abort OR 15-minute timeout
   const timeoutMs = 15 * 60 * 1000 // 15 minutes — some models with large context need a long time
@@ -66,7 +73,7 @@ export async function streamChat(
       // Otherwise it's a timeout or network error
       onError(
         new Error(
-          "Request timed out or network error. This is often caused by unstable provider connection, CORS/gateway interruptions, or a slow model response.",
+          `Request timed out or network error (endpoint: ${endpointHost}). This is often caused by unstable provider connection, CORS/gateway interruptions, or a slow model response.`,
         ),
       )
       return

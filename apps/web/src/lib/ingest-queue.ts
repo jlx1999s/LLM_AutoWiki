@@ -269,6 +269,16 @@ async function processNext(projectPath: string): Promise<void> {
     })
     return
   }
+  if (!llmConfig.model?.trim()) {
+    next.status = "failed"
+    next.error = "LLM model not configured — set model in Settings"
+    processing = false
+    await saveQueue(pp)
+    void processNext(pp).catch((err) => {
+      console.error("[Ingest Queue] processNext failed:", err)
+    })
+    return
+  }
 
   const fullSourcePath = next.sourcePath.startsWith("/")
     ? next.sourcePath
@@ -289,7 +299,9 @@ async function processNext(projectPath: string): Promise<void> {
       next.folderContext,
     )
     if (writtenFiles.length === 0) {
-      throw new Error("No wiki files generated. Please check LLM settings or retry.")
+      throw new Error(
+        "No wiki files generated. Please check Activity details for the provider error and verify your model/API key configuration.",
+      )
     }
     lastWrittenFiles = writtenFiles
 

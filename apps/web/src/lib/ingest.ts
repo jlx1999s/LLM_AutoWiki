@@ -64,6 +64,7 @@ export async function autoIngest(
   activity.updateItem(activityId, { detail: "Step 1/2: Analyzing source..." })
 
   let analysis = ""
+  let ingestError: string | null = null
 
   await streamChat(
     llmConfig,
@@ -75,14 +76,15 @@ export async function autoIngest(
       onToken: (token) => { analysis += token },
       onDone: () => {},
       onError: (err) => {
-        activity.updateItem(activityId, { status: "error", detail: `Analysis failed: ${err.message}` })
+        ingestError = `Analysis failed: ${err.message}`
+        activity.updateItem(activityId, { status: "error", detail: ingestError })
       },
     },
     signal,
   )
 
   if (useActivityStore.getState().items.find((i) => i.id === activityId)?.status === "error") {
-    return []
+    throw new Error(ingestError ?? "Analysis failed")
   }
 
   // ── Step 2: Generation ────────────────────────────────────────
@@ -114,14 +116,15 @@ export async function autoIngest(
       onToken: (token) => { generation += token },
       onDone: () => {},
       onError: (err) => {
-        activity.updateItem(activityId, { status: "error", detail: `Generation failed: ${err.message}` })
+        ingestError = `Generation failed: ${err.message}`
+        activity.updateItem(activityId, { status: "error", detail: ingestError })
       },
     },
     signal,
   )
 
   if (useActivityStore.getState().items.find((i) => i.id === activityId)?.status === "error") {
-    return []
+    throw new Error(ingestError ?? "Generation failed")
   }
 
   // ── Step 3: Write files ───────────────────────────────────────
