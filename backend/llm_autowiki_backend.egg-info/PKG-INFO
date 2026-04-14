@@ -1,0 +1,41 @@
+Metadata-Version: 2.4
+Name: llm-autowiki-backend
+Version: 0.1.0
+Summary: Python backend for LLM Wiki Studio
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+Requires-Dist: fastapi<0.117.0,>=0.115.0
+Requires-Dist: uvicorn[standard]<0.32.0,>=0.30.0
+Requires-Dist: pydantic-settings<2.6.0,>=2.3.0
+Requires-Dist: sqlalchemy<2.1.0,>=2.0.30
+Provides-Extra: dev
+Requires-Dist: pytest<8.4.0,>=8.2.0; extra == "dev"
+Requires-Dist: httpx<0.28.0,>=0.27.0; extra == "dev"
+
+# LLM Wiki Backend
+
+## Run
+
+```bash
+cd backend
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e ".[dev]"
+uvicorn app.main:app --reload
+```
+
+## APIs
+
+- `GET /healthz`
+- `POST /api/ingest`
+- `POST /api/wiki/build`
+- `GET /api/wiki/pages`
+- `GET /api/wiki/pages/{slug}`
+- `POST /api/qa/query`
+
+## Notes
+
+- Current version supports `.md` and `.txt` ingestion.
+- QA is lexical retrieval based, and returns evidence chunks.
+- Wiki output will be generated under `../data/wiki`.
+
