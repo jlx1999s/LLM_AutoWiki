@@ -26,3 +26,8 @@ data/eval/runs/
 # Python build artifacts
 backend/build/
 *.egg-info/
+
+# Frontend artifacts
+apps/web/node_modules/
+apps/web/dist/
+apps/web/.vite/
