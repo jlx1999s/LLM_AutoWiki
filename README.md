@@ -7,6 +7,7 @@ An implementation-oriented `LLM Wiki` project inspired by [nashsu/llm_wiki](http
 - Design doc completed: `docs/LLM_WIKI_DESIGN_CN.md`
 - Backend scaffold completed (`FastAPI + SQLite`)
 - Upstream full frontend synced into `apps/web`
+- Added web bridge compatibility for upstream Tauri calls (`/api/bridge/*`)
 - Core APIs available for:
   - ingest (`/api/ingest`)
   - wiki build (`/api/wiki/build`)

@@ -10,7 +10,18 @@ export default defineConfig(async () => ({
   plugins: [react(), tailwindcss()],
 
   resolve: {
-    alias: { "@": path.resolve(__dirname, "./src") },
+    alias: {
+      "@": path.resolve(__dirname, "./src"),
+      "@tauri-apps/api/core": path.resolve(__dirname, "./src/shims/tauri-core.ts"),
+      "@tauri-apps/plugin-dialog": path.resolve(
+        __dirname,
+        "./src/shims/tauri-dialog.ts",
+      ),
+      "@tauri-apps/plugin-store": path.resolve(
+        __dirname,
+        "./src/shims/tauri-store.ts",
+      ),
+    },
   },
 
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`

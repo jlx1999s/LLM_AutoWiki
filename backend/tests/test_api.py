@@ -77,3 +77,35 @@ def test_eval_run_and_latest(tmp_path: Path) -> None:
         latest_payload = latest_resp.json()
         assert latest_payload["exists"] is True
         assert latest_payload["run_id"] == payload["run_id"]
+
+
+def test_bridge_invoke_file_ops(tmp_path: Path) -> None:
+    base_dir = tmp_path / "demo_project"
+    base_dir.mkdir(parents=True, exist_ok=True)
+    target_file = base_dir / "notes.md"
+
+    with TestClient(app) as client:
+        write_resp = client.post(
+            "/api/bridge/invoke",
+            json={
+                "command": "write_file",
+                "args": {"path": str(target_file), "contents": "# hello\nbridge write ok"},
+            },
+        )
+        assert write_resp.status_code == 200
+
+        read_resp = client.post(
+            "/api/bridge/invoke",
+            json={"command": "read_file", "args": {"path": str(target_file)}},
+        )
+        assert read_resp.status_code == 200
+        assert "bridge write ok" in read_resp.json()["result"]
+
+        list_resp = client.post(
+            "/api/bridge/invoke",
+            json={"command": "list_directory", "args": {"path": str(base_dir)}},
+        )
+        assert list_resp.status_code == 200
+        nodes = list_resp.json()["result"]
+        assert isinstance(nodes, list)
+        assert any(node["name"] == "notes.md" for node in nodes)

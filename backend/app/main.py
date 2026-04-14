@@ -3,9 +3,11 @@ from pathlib import Path
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
+from app.api.bridge import router as bridge_router
 from app.api.eval import router as eval_router
 from app.api.health import router as health_router
 from app.api.ingest import router as ingest_router
@@ -32,6 +34,13 @@ async def lifespan(_: FastAPI):
 def create_app() -> FastAPI:
     configure_logging()
     app = FastAPI(title="LLM Wiki Backend", version="0.1.0", lifespan=lifespan)
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=False,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
     app.mount("/static", StaticFiles(directory=str(WEB_DIR)), name="static")
 
     @app.get("/", include_in_schema=False)
@@ -43,6 +52,7 @@ def create_app() -> FastAPI:
     app.include_router(wiki_router)
     app.include_router(qa_router)
     app.include_router(eval_router)
+    app.include_router(bridge_router)
     return app
 
 

@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -85,3 +85,12 @@ class EvalLatestResponse(BaseModel):
     metrics_path: Optional[str] = None
     report_path: Optional[str] = None
     metrics: Optional[dict] = None
+
+
+class BridgeInvokeRequest(BaseModel):
+    command: str
+    args: dict[str, Any] = Field(default_factory=dict)
+
+
+class BridgeInvokeResponse(BaseModel):
+    result: Any

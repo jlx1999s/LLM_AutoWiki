@@ -22,6 +22,8 @@ Open [http://127.0.0.1:8000](http://127.0.0.1:8000) for the built-in demo UI.
 - `POST /api/qa/query`
 - `POST /api/eval/run`
 - `GET /api/eval/latest`
+- `POST /api/bridge/invoke`
+- `GET /api/bridge/file?path=...`
 
 ## Notes
 

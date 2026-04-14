@@ -9,14 +9,26 @@ This folder contains a full frontend sync from:
 ## Run
 
 ```bash
+cd backend
+source .venv/bin/activate
+uvicorn app.main:app --reload
+
 cd apps/web
 npm install
 npm run dev
 ```
 
+Optional backend URL override:
+
+```bash
+VITE_BACKEND_URL=http://127.0.0.1:8000 npm run dev
+```
+
 ## Notes
 
 - This is the upstream frontend architecture (`src/components`, `src/lib`, `src/stores`, i18n, graph/chat/research views).
-- It is Tauri-oriented by default and expects matching desktop/native commands.
-- Backend adaptation to this repository's Python APIs will be done incrementally on top of this synced baseline.
-
+- Tauri calls are redirected to web shims via Vite aliases:
+  - `@tauri-apps/api/core` -> `src/shims/tauri-core.ts`
+  - `@tauri-apps/plugin-dialog` -> `src/shims/tauri-dialog.ts`
+  - `@tauri-apps/plugin-store` -> `src/shims/tauri-store.ts`
+- Shim `invoke` calls backend bridge endpoint: `/api/bridge/invoke`.
