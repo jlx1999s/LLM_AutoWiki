@@ -67,7 +67,14 @@ export function SettingsView() {
 
   async function handleSave() {
     const { saveLlmConfig, saveSearchApiConfig, saveEmbeddingConfig } = await import("@/lib/project-store")
-    const newConfig = { provider, apiKey, model, ollamaUrl, customEndpoint, maxContextSize }
+    const newConfig = {
+      provider,
+      apiKey: apiKey.trim(),
+      model: model.trim(),
+      ollamaUrl: ollamaUrl.trim(),
+      customEndpoint: customEndpoint.trim(),
+      maxContextSize,
+    }
     const newSearchConfig = { provider: searchProvider, apiKey: searchApiKey }
     const newEmbeddingConfig = { enabled: embeddingEnabled, endpoint: embeddingEndpoint, apiKey: embeddingApiKey, model: embeddingModel }
     setSearchApiConfig(newSearchConfig)
@@ -139,17 +146,23 @@ export function SettingsView() {
               </div>
             </div>
 
-            {provider === "custom" && (
+            {(provider === "custom" || provider === "minimax") && (
               <div className="space-y-2">
                 <Label htmlFor="customEndpoint">{t("settings.customEndpoint")}</Label>
                 <Input
                   id="customEndpoint"
                   value={customEndpoint}
                   onChange={(e) => setCustomEndpoint(e.target.value)}
-                  placeholder="https://your-api.example.com/v1"
+                  placeholder={
+                    provider === "minimax"
+                      ? "https://api.minimaxi.com/anthropic"
+                      : "https://your-api.example.com/v1"
+                  }
                 />
                 <p className="text-xs text-muted-foreground">
-                  {t("settings.customEndpointHint")}
+                  {provider === "minimax"
+                    ? "MiniMax 官方 Anthropic 兼容端点。留空则默认使用 https://api.minimaxi.com/anthropic"
+                    : t("settings.customEndpointHint")}
                 </p>
               </div>
             )}

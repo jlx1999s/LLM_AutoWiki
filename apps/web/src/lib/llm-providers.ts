@@ -13,6 +13,19 @@ interface ProviderConfig {
 }
 
 const JSON_CONTENT_TYPE = "application/json"
+const MINIMAX_ANTHROPIC_BASE = "https://api.minimaxi.com/anthropic"
+
+function stripTrailingSlash(url: string): string {
+  return url.replace(/\/+$/, "")
+}
+
+function buildAnthropicMessagesUrl(baseOrUrl: string): string {
+  const normalized = stripTrailingSlash(baseOrUrl.trim())
+  if (!normalized) return `${MINIMAX_ANTHROPIC_BASE}/v1/messages`
+  if (normalized.endsWith("/v1/messages")) return normalized
+  if (normalized.endsWith("/v1")) return `${normalized}/messages`
+  return `${normalized}/v1/messages`
+}
 
 function parseOpenAiLine(line: string): string | null {
   if (!line.startsWith("data: ")) return null
@@ -161,18 +174,22 @@ export function getProviderConfig(config: LlmConfig): ProviderConfig {
       }
 
     case "minimax":
+      {
+        const minimaxBase = customEndpoint?.trim() || MINIMAX_ANTHROPIC_BASE
       return {
-        url: "https://api.minimax.io/v1/chat/completions",
+        url: buildAnthropicMessagesUrl(minimaxBase),
         headers: {
           "Content-Type": JSON_CONTENT_TYPE,
-          Authorization: `Bearer ${apiKey}`,
+          "x-api-key": apiKey.trim(),
+          "anthropic-version": "2023-06-01",
+          "anthropic-dangerous-direct-browser-access": "true",
         },
         buildBody: (messages) => ({
-          ...buildOpenAiBody(messages),
+          ...buildAnthropicBody(messages),
           model,
-          temperature: 1.0,
         }),
-        parseStream: parseOpenAiLine,
+        parseStream: parseAnthropicLine,
+      }
       }
 
     case "custom":
