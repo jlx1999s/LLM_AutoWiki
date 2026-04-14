@@ -50,6 +50,11 @@ export function ActivityPanel() {
 
   const queueSummary = getQueueSummary()
   const hasQueue = queueSummary.total > 0
+  const processingQueueNames = new Set(
+    queueTasks
+      .filter((t) => t.status === "processing")
+      .map((t) => getFileName(t.sourcePath)),
+  )
 
   // All hooks must be before any conditional return
   const handleRetry = useCallback((taskId: string) => {
@@ -144,7 +149,16 @@ export function ActivityPanel() {
           ))}
 
           {/* Activity items */}
-          {items.map((item) => {
+          {items
+            .filter((item) => {
+              // Avoid duplicate rows: processing queue task already represents this running ingest item.
+              return !(
+                item.type === "ingest" &&
+                item.status === "running" &&
+                processingQueueNames.has(item.title)
+              )
+            })
+            .map((item) => {
             // Find matching queue task for cancel button
             const matchingTask = item.status === "running"
               ? queueTasks.find((t) => t.status === "processing" && getFileName(t.sourcePath) === item.title)
