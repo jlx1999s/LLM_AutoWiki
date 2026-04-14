@@ -18,3 +18,7 @@ venv/
 data/index/
 data/wiki/
 data/raw/
+
+# Python build artifacts
+backend/build/
+*.egg-info/
