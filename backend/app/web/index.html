@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LLM Wiki Studio</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <div class="bg"></div>
+    <main class="layout">
+      <header class="hero">
+        <p class="eyebrow">Local-First Knowledge Compiler</p>
+        <h1>LLM Wiki Studio</h1>
+        <p class="subtitle">
+          导入文档 -> 编译 Wiki -> 问答检索 -> 离线评测，一站式演示当前后端能力。
+        </p>
+      </header>
+
+      <section class="grid">
+        <article class="card">
+          <h2>1. Ingest</h2>
+          <label for="ingestPath">文档路径（文件或目录）</label>
+          <input id="ingestPath" type="text" placeholder="/absolute/path/to/docs" />
+          <label class="checkbox">
+            <input id="ingestRecursive" type="checkbox" checked />
+            <span>目录递归扫描</span>
+          </label>
+          <button id="btnIngest">开始导入</button>
+        </article>
+
+        <article class="card">
+          <h2>2. Build Wiki</h2>
+          <p class="hint">把已导入资料编译为 Wiki 页面和索引文件。</p>
+          <button id="btnBuild">执行编译</button>
+        </article>
+
+        <article class="card">
+          <h2>3. QA</h2>
+          <label for="qaQuestion">问题</label>
+          <input id="qaQuestion" type="text" placeholder="LLM Wiki 可以做什么？" />
+          <div class="row">
+            <label for="qaTopK">Top K</label>
+            <input id="qaTopK" type="number" min="1" max="20" value="5" />
+          </div>
+          <div class="row">
+            <label for="qaStrategy">检索策略</label>
+            <select id="qaStrategy">
+              <option value="hybrid">hybrid</option>
+              <option value="lexical">lexical</option>
+              <option value="vector">vector</option>
+            </select>
+          </div>
+          <button id="btnQA">发送问题</button>
+        </article>
+
+        <article class="card">
+          <h2>4. Eval</h2>
+          <label for="evalPath">评测集路径（可空，默认 data/eval/qa_eval.jsonl）</label>
+          <input id="evalPath" type="text" placeholder="/absolute/path/to/qa_eval.jsonl" />
+          <div class="row">
+            <label for="evalTopK">Top K</label>
+            <input id="evalTopK" type="number" min="1" max="20" value="5" />
+          </div>
+          <div class="row">
+            <label for="evalStrategy">检索策略</label>
+            <select id="evalStrategy">
+              <option value="hybrid">hybrid</option>
+              <option value="lexical">lexical</option>
+              <option value="vector">vector</option>
+            </select>
+          </div>
+          <button id="btnEval">执行评测</button>
+          <button id="btnEvalLatest" class="ghost">查看最近报告</button>
+        </article>
+      </section>
+
+      <section class="card output">
+        <h2>输出结果</h2>
+        <pre id="output">等待操作...</pre>
+      </section>
+    </main>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>

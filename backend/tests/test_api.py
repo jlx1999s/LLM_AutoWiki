@@ -12,6 +12,13 @@ def test_healthz() -> None:
         assert response.json()["status"] == "ok"
 
 
+def test_root_page() -> None:
+    with TestClient(app) as client:
+        response = client.get("/")
+        assert response.status_code == 200
+        assert "LLM Wiki Studio" in response.text
+
+
 def test_ingest_build_and_qa(tmp_path: Path) -> None:
     sample_file = tmp_path / "sample.md"
     sample_file.write_text("# LLM\nLLM Wiki can compile documents into pages.", encoding="utf-8")

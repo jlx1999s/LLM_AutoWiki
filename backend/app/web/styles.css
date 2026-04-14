@@ -1,0 +1,216 @@
+:root {
+  --bg-start: #f3f7ff;
+  --bg-mid: #eefaf3;
+  --bg-end: #fff8ef;
+  --ink: #10223e;
+  --muted: #47607f;
+  --card: rgba(255, 255, 255, 0.75);
+  --line: rgba(16, 34, 62, 0.14);
+  --brand: #0d5bd7;
+  --brand-hover: #0748ad;
+  --ghost-bg: #eff4fd;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: "Avenir Next", "Segoe UI", "Helvetica Neue", sans-serif;
+  color: var(--ink);
+  min-height: 100vh;
+  background: linear-gradient(115deg, var(--bg-start), var(--bg-mid), var(--bg-end));
+}
+
+.bg {
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(circle at 20% 20%, rgba(13, 91, 215, 0.15), transparent 45%),
+    radial-gradient(circle at 85% 18%, rgba(0, 138, 88, 0.18), transparent 42%),
+    radial-gradient(circle at 65% 82%, rgba(238, 125, 38, 0.18), transparent 44%);
+  pointer-events: none;
+}
+
+.layout {
+  width: min(1100px, 92vw);
+  margin: 0 auto;
+  padding: 42px 0 64px;
+  position: relative;
+  z-index: 1;
+}
+
+.hero {
+  margin-bottom: 24px;
+  animation: fade-in 0.45s ease-out;
+}
+
+.eyebrow {
+  margin: 0 0 8px;
+  color: #0e4fbd;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+h1 {
+  margin: 0;
+  font-size: clamp(30px, 6vw, 48px);
+}
+
+.subtitle {
+  margin: 10px 0 0;
+  color: var(--muted);
+  max-width: 70ch;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(260px, 1fr));
+  gap: 14px;
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 16px;
+  backdrop-filter: blur(8px);
+  animation: rise-in 0.45s ease;
+}
+
+.card h2 {
+  margin: 0 0 12px;
+  font-size: 20px;
+}
+
+label {
+  display: block;
+  margin-top: 10px;
+  margin-bottom: 6px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+input,
+select,
+button {
+  font: inherit;
+}
+
+input,
+select {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.85);
+}
+
+input:focus,
+select:focus {
+  outline: 2px solid rgba(13, 91, 215, 0.3);
+  border-color: var(--brand);
+}
+
+.checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.checkbox input {
+  width: auto;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 70px 1fr;
+  gap: 10px;
+  align-items: center;
+  margin-top: 10px;
+}
+
+.row label {
+  margin: 0;
+}
+
+.hint {
+  margin: 0 0 12px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+button {
+  margin-top: 12px;
+  border: 0;
+  border-radius: 10px;
+  padding: 10px 14px;
+  background: var(--brand);
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+button:hover {
+  background: var(--brand-hover);
+}
+
+button.ghost {
+  background: var(--ghost-bg);
+  color: #103465;
+  margin-left: 8px;
+}
+
+.output {
+  margin-top: 14px;
+}
+
+pre {
+  margin: 0;
+  padding: 12px;
+  border-radius: 10px;
+  max-height: 420px;
+  overflow: auto;
+  background: #0f1b33;
+  color: #d8e5ff;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+@media (max-width: 860px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+
+  .row {
+    grid-template-columns: 1fr;
+  }
+
+  button.ghost {
+    margin-left: 0;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
