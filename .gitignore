@@ -18,6 +18,10 @@ venv/
 data/index/
 data/wiki/
 data/raw/
+data/eval/latest_*.json
+data/eval/latest_*.md
+data/eval/latest_run_id.txt
+data/eval/runs/
 
 # Python build artifacts
 backend/build/

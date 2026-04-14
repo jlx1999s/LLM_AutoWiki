@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Literal
+from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -56,3 +56,32 @@ class QAQueryResponse(BaseModel):
     citations: list[Citation]
     latency_ms: int
     strategy: Literal["lexical", "vector", "hybrid"]
+
+
+class EvalRunRequest(BaseModel):
+    dataset_path: Optional[str] = Field(
+        default=None,
+        description="Path to QA eval jsonl dataset. Defaults to data/eval/qa_eval.jsonl.",
+    )
+    top_k: int = Field(default=5, ge=1, le=20)
+    strategy: Literal["lexical", "vector", "hybrid"] = "hybrid"
+
+
+class EvalRunResponse(BaseModel):
+    run_id: str
+    total_cases: int
+    answered_cases: int
+    answer_recall: float
+    citation_coverage: float
+    hallucination_rate: float
+    avg_latency_ms: float
+    metrics_path: str
+    report_path: str
+
+
+class EvalLatestResponse(BaseModel):
+    exists: bool
+    run_id: Optional[str] = None
+    metrics_path: Optional[str] = None
+    report_path: Optional[str] = None
+    metrics: Optional[dict] = None

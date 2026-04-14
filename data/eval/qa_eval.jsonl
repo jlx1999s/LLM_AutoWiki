@@ -1,0 +1,3 @@
+{"question":"LLM Wiki 可以做什么？","expected_keywords":["wiki","compile","documents"],"min_citations":1}
+{"question":"系统回答是否包含证据来源？","expected_keywords":["证据","source","citation"],"min_citations":1}
+{"question":"如何提高回答准确性？","expected_keywords":["资料","向量","检索"],"min_citations":1}

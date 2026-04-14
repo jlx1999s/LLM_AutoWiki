@@ -10,6 +10,7 @@ An implementation-oriented `LLM Wiki` project inspired by [nashsu/llm_wiki](http
   - ingest (`/api/ingest`)
   - wiki build (`/api/wiki/build`)
   - lexical QA (`/api/qa/query`)
+  - eval run (`/api/eval/run`)
 
 ## Quick Start (Backend)
 
@@ -20,4 +21,3 @@ source .venv/bin/activate
 pip install -e ".[dev]"
 uvicorn app.main:app --reload
 ```
-
