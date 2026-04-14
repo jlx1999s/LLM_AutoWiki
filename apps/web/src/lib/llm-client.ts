@@ -64,7 +64,11 @@ export async function streamChat(
         return
       }
       // Otherwise it's a timeout or network error
-      onError(new Error("Request timed out or network error. The model may need more time — try again or use a faster model."))
+      onError(
+        new Error(
+          "Request timed out or network error. This is often caused by unstable provider connection, CORS/gateway interruptions, or a slow model response.",
+        ),
+      )
       return
     }
     onError(err instanceof Error ? err : new Error(String(err)))

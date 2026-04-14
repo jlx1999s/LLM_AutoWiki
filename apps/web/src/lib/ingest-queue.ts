@@ -79,7 +79,9 @@ export async function enqueueIngest(
   await saveQueue(pp)
 
   // Start processing if not already running
-  processNext(pp)
+  void processNext(pp).catch((err) => {
+    console.error("[Ingest Queue] processNext failed:", err)
+  })
 
   return task.id
 }
@@ -111,7 +113,9 @@ export async function enqueueBatch(
 
   await saveQueue(pp)
   console.log(`[Ingest Queue] Enqueued ${files.length} files`)
-  processNext(pp)
+  void processNext(pp).catch((err) => {
+    console.error("[Ingest Queue] processNext failed:", err)
+  })
 
   return ids
 }
@@ -126,7 +130,9 @@ export async function retryTask(projectPath: string, taskId: string): Promise<vo
   task.status = "pending"
   task.error = null
   await saveQueue(projectPath)
-  processNext(normalizePath(projectPath))
+  void processNext(normalizePath(projectPath)).catch((err) => {
+    console.error("[Ingest Queue] processNext failed:", err)
+  })
 }
 
 /**
@@ -167,7 +173,9 @@ export async function cancelTask(projectPath: string, taskId: string): Promise<v
   console.log(`[Ingest Queue] Cancelled: ${task.sourcePath}`)
 
   // Continue with next task
-  processNext(normalizePath(projectPath))
+  void processNext(normalizePath(projectPath)).catch((err) => {
+    console.error("[Ingest Queue] processNext failed:", err)
+  })
 }
 
 /**
@@ -227,7 +235,9 @@ export async function restoreQueue(projectPath: string): Promise<void> {
 
   if (pending > 0 || restored > 0) {
     console.log(`[Ingest Queue] Restored: ${pending} pending, ${failed} failed, ${restored} resumed from interrupted`)
-    processNext(pp)
+    void processNext(pp).catch((err) => {
+      console.error("[Ingest Queue] processNext failed:", err)
+    })
   }
 }
 
@@ -254,7 +264,9 @@ async function processNext(projectPath: string): Promise<void> {
     next.error = "LLM not configured — set API key in Settings"
     processing = false
     await saveQueue(pp)
-    processNext(pp)
+    void processNext(pp).catch((err) => {
+      console.error("[Ingest Queue] processNext failed:", err)
+    })
     return
   }
 
@@ -269,7 +281,16 @@ async function processNext(projectPath: string): Promise<void> {
   lastWrittenFiles = []
 
   try {
-    const writtenFiles = await autoIngest(pp, fullSourcePath, llmConfig, currentAbortController.signal, next.folderContext)
+    const writtenFiles = await autoIngest(
+      pp,
+      fullSourcePath,
+      llmConfig,
+      currentAbortController.signal,
+      next.folderContext,
+    )
+    if (writtenFiles.length === 0) {
+      throw new Error("No wiki files generated. Please check LLM settings or retry.")
+    }
     lastWrittenFiles = writtenFiles
 
     // Success: remove from queue
@@ -297,5 +318,7 @@ async function processNext(projectPath: string): Promise<void> {
   }
 
   processing = false
-  processNext(pp)
+  void processNext(pp).catch((err) => {
+    console.error("[Ingest Queue] processNext failed:", err)
+  })
 }

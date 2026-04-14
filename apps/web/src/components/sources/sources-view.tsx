@@ -89,12 +89,20 @@ export function SourcesView() {
     const paths = Array.isArray(selected) ? selected : [selected]
 
     const importedPaths: string[] = []
+    const skippedDuplicates: string[] = []
+    const existingNames = new Set(flattenAllFileNames(sources).map((n) => n.toLowerCase()))
     for (const sourcePath of paths) {
       const originalName = getFileName(sourcePath) || "unknown"
+      const normalizedName = originalName.toLowerCase()
+      if (existingNames.has(normalizedName)) {
+        skippedDuplicates.push(originalName)
+        continue
+      }
       const destPath = await getUniqueDestPath(`${pp}/raw/sources`, originalName)
       try {
         await copyFile(sourcePath, destPath)
         importedPaths.push(destPath)
+        existingNames.add(normalizedName)
         // Pre-process file (extract text from PDF, etc.) for instant preview later
         preprocessFile(destPath).catch(() => {})
       } catch (err) {
@@ -105,13 +113,32 @@ export function SourcesView() {
     setImporting(false)
     await loadSources()
 
+    if (skippedDuplicates.length > 0) {
+      const preview = skippedDuplicates.slice(0, 3).join(", ")
+      window.alert(
+        `Skipped ${skippedDuplicates.length} duplicate file(s) (same filename already exists): ${preview}${skippedDuplicates.length > 3 ? " ..." : ""}`
+      )
+    }
+    if (importedPaths.length === 0) return
+
     // Enqueue for serial ingest (runs in background via ingest queue)
+    let queuedCount = 0
     if (llmConfig.apiKey || llmConfig.provider === "ollama" || llmConfig.provider === "custom") {
       for (const destPath of importedPaths) {
-        enqueueIngest(pp, destPath).catch((err) =>
+        try {
+          await enqueueIngest(pp, destPath)
+          queuedCount += 1
+        } catch (err) {
           console.error(`Failed to enqueue ingest:`, err)
-        )
+        }
       }
+      if (queuedCount > 0) {
+        setChatExpanded(true)
+        setActiveView("wiki")
+        window.alert(`Imported ${importedPaths.length} file(s), queued ${queuedCount} for analysis.`)
+      }
+    } else {
+      window.alert(`Imported ${importedPaths.length} file(s). Configure LLM in Settings, then click Ingest manually.`)
     }
   }
 
@@ -170,6 +197,9 @@ export function SourcesView() {
         if (tasks.length > 0) {
           await enqueueBatch(pp, tasks)
           console.log(`[Folder Import] Enqueued ${tasks.length} files for ingest`)
+          setChatExpanded(true)
+          setActiveView("wiki")
+          window.alert(`Imported folder and queued ${tasks.length} file(s) for analysis.`)
         }
       }
     } catch (err) {
@@ -575,4 +605,16 @@ function flattenMdFiles(nodes: FileNode[]): FileNode[] {
     }
   }
   return files
+}
+
+function flattenAllFileNames(nodes: FileNode[]): string[] {
+  const names: string[] = []
+  for (const node of nodes) {
+    if (node.is_dir && node.children) {
+      names.push(...flattenAllFileNames(node.children))
+    } else if (!node.is_dir) {
+      names.push(node.name)
+    }
+  }
+  return names
 }
