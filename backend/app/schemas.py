@@ -94,3 +94,21 @@ class BridgeInvokeRequest(BaseModel):
 
 class BridgeInvokeResponse(BaseModel):
     result: Any
+
+
+class LlmMessage(BaseModel):
+    role: Literal["system", "user", "assistant"]
+    content: str
+
+
+class MiniMaxProxyRequest(BaseModel):
+    api_key: str
+    model: str
+    messages: list[LlmMessage]
+    endpoint: Optional[str] = None
+    max_tokens: int = Field(default=4096, ge=1, le=32768)
+    timeout_sec: int = Field(default=300, ge=10, le=900)
+
+
+class MiniMaxProxyResponse(BaseModel):
+    text: str

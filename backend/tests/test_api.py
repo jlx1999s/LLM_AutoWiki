@@ -2,6 +2,7 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
+from app.api import llm as llm_api
 from app.main import app
 
 
@@ -285,3 +286,22 @@ def test_bridge_write_file_base64(tmp_path: Path) -> None:
         )
         assert resp.status_code == 200
         assert out.read_bytes() == b"\x00\x01\x02"
+
+
+def test_llm_minimax_proxy(monkeypatch) -> None:
+    def fake_run_minimax_completion(**_: object) -> str:
+        return "proxy ok"
+
+    monkeypatch.setattr(llm_api, "run_minimax_completion", fake_run_minimax_completion)
+
+    with TestClient(app) as client:
+        resp = client.post(
+            "/api/llm/minimax",
+            json={
+                "api_key": "k",
+                "model": "MiniMax-M2.7",
+                "messages": [{"role": "user", "content": "hello"}],
+            },
+        )
+        assert resp.status_code == 200
+        assert resp.json()["text"] == "proxy ok"

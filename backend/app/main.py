@@ -11,6 +11,7 @@ from app.api.bridge import router as bridge_router
 from app.api.eval import router as eval_router
 from app.api.health import router as health_router
 from app.api.ingest import router as ingest_router
+from app.api.llm import router as llm_router
 from app.api.qa import router as qa_router
 from app.api.wiki import router as wiki_router
 from app.core.config import get_settings
@@ -53,6 +54,7 @@ def create_app() -> FastAPI:
     app.include_router(qa_router)
     app.include_router(eval_router)
     app.include_router(bridge_router)
+    app.include_router(llm_router)
     return app
 
 

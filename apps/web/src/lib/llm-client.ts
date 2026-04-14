@@ -11,6 +11,12 @@ export interface StreamCallbacks {
 
 const DECODER = new TextDecoder()
 
+function backendApiBase(): string {
+  const defaultBackend = `${window.location.protocol}//${window.location.hostname || "127.0.0.1"}:8000`
+  const env = (import.meta as ImportMeta & { env: { VITE_BACKEND_URL?: string } }).env
+  return env.VITE_BACKEND_URL || (window.location.port === "8000" ? window.location.origin : defaultBackend)
+}
+
 function parseLines(chunk: Uint8Array, buffer: string): [string[], string] {
   const text = buffer + DECODER.decode(chunk, { stream: true })
   const lines = text.split("\n")
@@ -25,6 +31,45 @@ export async function streamChat(
   signal?: AbortSignal,
 ): Promise<void> {
   const { onToken, onDone, onError } = callbacks
+
+  // Route MiniMax via local backend proxy for better reliability in browser environments.
+  if (config.provider === "minimax") {
+    const apiBase = backendApiBase()
+    try {
+      const resp = await fetch(`${apiBase}/api/llm/minimax`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          api_key: config.apiKey,
+          model: config.model,
+          endpoint: config.customEndpoint || undefined,
+          max_tokens: 4096,
+          timeout_sec: 300,
+          messages,
+        }),
+        signal,
+      })
+
+      const payload = await resp.json().catch(() => ({}))
+      if (!resp.ok) {
+        const detail = payload?.detail ? String(payload.detail) : `HTTP ${resp.status}`
+        onError(new Error(detail))
+        return
+      }
+      const text = typeof payload?.text === "string" ? payload.text : ""
+      if (text) onToken(text)
+      onDone()
+      return
+    } catch (err) {
+      if (err instanceof Error && (err.name === "AbortError" || signal?.aborted)) {
+        onDone()
+        return
+      }
+      onError(err instanceof Error ? err : new Error(String(err)))
+      return
+    }
+  }
+
   const providerConfig = getProviderConfig(config)
   const endpointHost = (() => {
     try {
