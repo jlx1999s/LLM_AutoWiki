@@ -22,6 +22,7 @@ data/eval/latest_*.json
 data/eval/latest_*.md
 data/eval/latest_run_id.txt
 data/eval/runs/
+backend/projects/
 
 # Python build artifacts
 backend/build/

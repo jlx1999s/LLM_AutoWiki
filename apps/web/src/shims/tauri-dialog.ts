@@ -1,7 +1,10 @@
+import { isVirtualFilePath, registerPickedFiles } from "@/shims/browser-file-registry"
+
 interface OpenOptions {
   directory?: boolean
   multiple?: boolean
   title?: string
+  filters?: Array<{ name?: string; extensions?: string[] }>
 }
 
 const LAST_BASE_KEY = "bridge:lastOpenBase"
@@ -113,24 +116,39 @@ export async function open(options: OpenOptions = {}): Promise<string | string[]
     if (!picked) return null
     inputs = [picked]
   } else {
-    const hint = options.directory
-      ? "输入目录路径（支持相对路径）"
-      : "输入文件路径（支持相对路径）"
-    const multiHint = options.multiple ? "（多个路径请用逗号分隔）" : ""
-    const raw = window.prompt(
-      `${options.title ?? "Select Path"}\n${hint}${multiHint}\n基准目录: ${base || "(默认)"}`
-    )
-    if (!raw) return null
-    inputs = raw
-      .split(",")
-      .map((p) => p.trim())
-      .filter(Boolean)
+    // File import flow: use real browser picker instead of manual path typing.
+    const picked = await new Promise<File[] | null>((resolve) => {
+      const input = document.createElement("input")
+      input.type = "file"
+      input.multiple = !!options.multiple
+      if (options.filters?.length) {
+        const exts = options.filters
+          .flatMap((f) => f.extensions ?? [])
+          .filter((ext) => ext && ext !== "*")
+          .map((ext) => (ext.startsWith(".") ? ext : `.${ext}`))
+        if (exts.length) {
+          input.accept = Array.from(new Set(exts)).join(",")
+        }
+      }
+      input.onchange = () => {
+        const files = Array.from(input.files ?? [])
+        resolve(files.length ? files : null)
+      }
+      input.oncancel = () => resolve(null)
+      input.click()
+    })
+    if (!picked) return null
+    inputs = registerPickedFiles(picked)
   }
 
   if (inputs.length === 0) return null
 
   const resolved: string[] = []
   for (const input of inputs) {
+    if (isVirtualFilePath(input)) {
+      resolved.push(input)
+      continue
+    }
     try {
       const abs = await invokeBridge<string>("resolve_path", {
         path: input,
@@ -144,7 +162,10 @@ export async function open(options: OpenOptions = {}): Promise<string | string[]
     }
   }
 
-  const nextBase = options.directory ? resolved[0] : parentDir(resolved[0])
+  const firstResolved = resolved[0]
+  const nextBase = firstResolved && !isVirtualFilePath(firstResolved)
+    ? (options.directory ? firstResolved : parentDir(firstResolved))
+    : base
   if (nextBase) {
     window.localStorage.setItem(LAST_BASE_KEY, nextBase)
   }

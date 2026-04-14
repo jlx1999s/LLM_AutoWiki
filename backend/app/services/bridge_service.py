@@ -4,6 +4,7 @@ import json
 import math
 import shutil
 import socket
+import base64
 from collections import deque
 from pathlib import Path
 from typing import Any
@@ -42,6 +43,13 @@ def write_file(path: str, contents: str) -> None:
     p = _norm(path)
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(contents, encoding="utf-8")
+
+
+def write_file_base64(path: str, content_base64: str) -> None:
+    p = _norm(path)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    raw = base64.b64decode(content_base64.encode("utf-8"))
+    p.write_bytes(raw)
 
 
 def _build_file_node(path: Path) -> dict[str, Any]:
@@ -280,6 +288,7 @@ COMMAND_MAP = {
     "resolve_path": resolve_path,
     "read_file": read_file,
     "write_file": write_file,
+    "write_file_base64": write_file_base64,
     "list_directory": list_directory,
     "copy_file": copy_file,
     "copy_directory": copy_directory,

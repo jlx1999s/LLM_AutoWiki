@@ -269,3 +269,19 @@ def test_bridge_list_projects_discovers_workspace(tmp_path: Path) -> None:
         assert resp.status_code == 200
         rows = resp.json()["result"]
         assert any(r["name"] == "mywiki" for r in rows)
+
+
+def test_bridge_write_file_base64(tmp_path: Path) -> None:
+    out = tmp_path / "bin.dat"
+    payload = "AAEC"  # bytes: 0x00 0x01 0x02
+
+    with TestClient(app) as client:
+        resp = client.post(
+            "/api/bridge/invoke",
+            json={
+                "command": "write_file_base64",
+                "args": {"path": str(out), "content_base64": payload},
+            },
+        )
+        assert resp.status_code == 200
+        assert out.read_bytes() == b"\x00\x01\x02"
