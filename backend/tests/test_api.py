@@ -250,3 +250,22 @@ def test_bridge_resolve_path_supports_relative(tmp_path: Path) -> None:
         )
         assert resolve_resp.status_code == 200
         assert resolve_resp.json()["result"].endswith("/a.txt")
+
+
+def test_bridge_list_projects_discovers_workspace(tmp_path: Path) -> None:
+    base = tmp_path / "workspace"
+    project_dir = base / "mywiki"
+    (project_dir / "wiki").mkdir(parents=True, exist_ok=True)
+    (project_dir / "raw" / "sources").mkdir(parents=True, exist_ok=True)
+
+    with TestClient(app) as client:
+        resp = client.post(
+            "/api/bridge/invoke",
+            json={
+                "command": "list_projects",
+                "args": {"base": str(base), "max_depth": 2, "limit": 10},
+            },
+        )
+        assert resp.status_code == 200
+        rows = resp.json()["result"]
+        assert any(r["name"] == "mywiki" for r in rows)

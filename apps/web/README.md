@@ -33,3 +33,4 @@ VITE_BACKEND_URL=http://127.0.0.1:8000 npm run dev
   - `@tauri-apps/plugin-store` -> `src/shims/tauri-store.ts`
 - Shim `invoke` calls backend bridge endpoint: `/api/bridge/invoke`.
 - Path dialog shim supports relative paths and remembers the last base directory.
+- Open/Create project flows now provide candidate directory selection (recent + auto-discovered), reducing manual path typing.

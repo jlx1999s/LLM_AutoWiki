@@ -1,5 +1,6 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { open } from "@tauri-apps/plugin-dialog"
+import { invoke } from "@tauri-apps/api/core"
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog"
@@ -25,6 +26,25 @@ export function CreateProjectDialog({ open: isOpen, onOpenChange, onCreated }: C
   const [selectedTemplate, setSelectedTemplate] = useState("general")
   const [error, setError] = useState("")
   const [creating, setCreating] = useState(false)
+
+  useEffect(() => {
+    if (!isOpen || path.trim()) return
+    let cancelled = false
+    async function fillDefaultPath() {
+      try {
+        const root = await invoke<string>("project_root")
+        if (!cancelled) {
+          setPath(`${root}/projects`)
+        }
+      } catch {
+        // ignore
+      }
+    }
+    fillDefaultPath()
+    return () => {
+      cancelled = true
+    }
+  }, [isOpen, path])
 
   async function handleBrowse() {
     const selected = await open({

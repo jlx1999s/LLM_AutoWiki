@@ -4,6 +4,7 @@ import json
 import math
 import shutil
 import socket
+from collections import deque
 from pathlib import Path
 from typing import Any
 
@@ -160,6 +161,54 @@ def clip_server_status() -> str:
         return "error"
 
 
+def _looks_like_project(path: Path) -> bool:
+    return (
+        path.is_dir()
+        and (path / "wiki").is_dir()
+        and (path / "raw").is_dir()
+    )
+
+
+def list_projects(
+    base: str | None = None,
+    max_depth: int = 3,
+    limit: int = 50,
+) -> list[dict[str, str]]:
+    root = _norm(base, base=PROJECT_ROOT) if base else PROJECT_ROOT
+    if not root.exists() or not root.is_dir():
+        return []
+
+    results: list[Path] = []
+    visited: set[Path] = set()
+    queue: deque[tuple[Path, int]] = deque([(root, 0)])
+
+    while queue and len(results) < max(1, int(limit)):
+        current, depth = queue.popleft()
+        if current in visited:
+            continue
+        visited.add(current)
+
+        if _looks_like_project(current):
+            results.append(current)
+            continue
+
+        if depth >= max(0, int(max_depth)):
+            continue
+
+        try:
+            children = sorted(
+                [p for p in current.iterdir() if p.is_dir() and not p.name.startswith(".")],
+                key=lambda p: p.name.lower(),
+            )
+        except Exception:
+            continue
+
+        for child in children:
+            queue.append((child, depth + 1))
+
+    return [{"name": p.name, "path": _to_posix(p)} for p in results]
+
+
 def _vector_file(project_path: str) -> Path:
     root = _norm(project_path)
     store_dir = root / ".llmwiki"
@@ -240,6 +289,7 @@ COMMAND_MAP = {
     "create_directory": create_directory,
     "create_project": create_project,
     "open_project": open_project,
+    "list_projects": list_projects,
     "clip_server_status": clip_server_status,
     "vector_upsert": vector_upsert,
     "vector_search": vector_search,
