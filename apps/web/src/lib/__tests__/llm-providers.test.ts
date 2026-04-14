@@ -29,6 +29,7 @@ function buildMiniMaxProviderConfig(config: LlmConfig) {
     headers: {
       "Content-Type": "application/json",
       "x-api-key": apiKey.trim(),
+      Authorization: `Bearer ${apiKey.trim()}`,
       "anthropic-version": "2023-06-01",
       "anthropic-dangerous-direct-browser-access": "true",
     },
@@ -66,6 +67,11 @@ describe("MiniMax Provider", () => {
   it("sets x-api-key header", () => {
     const cfg = buildMiniMaxProviderConfig(makeConfig({ apiKey: " my-key " }))
     expect(cfg.headers["x-api-key"]).toBe("my-key")
+  })
+
+  it("sets Authorization Bearer header", () => {
+    const cfg = buildMiniMaxProviderConfig(makeConfig({ apiKey: " my-key " }))
+    expect(cfg.headers.Authorization).toBe("Bearer my-key")
   })
 
   it("sets anthropic-version header", () => {
