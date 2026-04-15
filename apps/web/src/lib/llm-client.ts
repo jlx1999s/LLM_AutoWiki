@@ -1,7 +1,9 @@
 import type { LlmConfig } from "@/stores/wiki-store"
-import { getProviderConfig } from "./llm-providers"
 
-export type { ChatMessage } from "./llm-providers"
+export interface ChatMessage {
+  role: "system" | "user" | "assistant"
+  content: string
+}
 
 export interface StreamCallbacks {
   onToken: (token: string) => void
@@ -9,180 +11,54 @@ export interface StreamCallbacks {
   onError: (error: Error) => void
 }
 
-const DECODER = new TextDecoder()
-
 function backendApiBase(): string {
   const defaultBackend = `${window.location.protocol}//${window.location.hostname || "127.0.0.1"}:8000`
   const env = (import.meta as ImportMeta & { env: { VITE_BACKEND_URL?: string } }).env
   return env.VITE_BACKEND_URL || (window.location.port === "8000" ? window.location.origin : defaultBackend)
 }
 
-function parseLines(chunk: Uint8Array, buffer: string): [string[], string] {
-  const text = buffer + DECODER.decode(chunk, { stream: true })
-  const lines = text.split("\n")
-  const remaining = lines.pop() ?? ""
-  return [lines, remaining]
-}
-
 export async function streamChat(
   config: LlmConfig,
-  messages: import("./llm-providers").ChatMessage[],
+  messages: ChatMessage[],
   callbacks: StreamCallbacks,
   signal?: AbortSignal,
 ): Promise<void> {
   const { onToken, onDone, onError } = callbacks
-
-  // Route MiniMax via local backend proxy for better reliability in browser environments.
-  if (config.provider === "minimax") {
-    const apiBase = backendApiBase()
-    try {
-      const resp = await fetch(`${apiBase}/api/llm/minimax`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          api_key: config.apiKey,
-          model: config.model,
-          endpoint: config.customEndpoint || undefined,
-          max_tokens: 4096,
-          timeout_sec: 300,
-          messages,
-        }),
-        signal,
-      })
-
-      const payload = await resp.json().catch(() => ({}))
-      if (!resp.ok) {
-        const detail = payload?.detail ? String(payload.detail) : `HTTP ${resp.status}`
-        onError(new Error(detail))
-        return
-      }
-      const text = typeof payload?.text === "string" ? payload.text : ""
-      if (text) onToken(text)
-      onDone()
-      return
-    } catch (err) {
-      if (err instanceof Error && (err.name === "AbortError" || signal?.aborted)) {
-        onDone()
-        return
-      }
-      onError(err instanceof Error ? err : new Error(String(err)))
-      return
-    }
-  }
-
-  const providerConfig = getProviderConfig(config)
-  const endpointHost = (() => {
-    try {
-      return new URL(providerConfig.url).host
-    } catch {
-      return providerConfig.url
-    }
-  })()
-
-  // Create a combined signal: user abort OR 15-minute timeout
-  const timeoutMs = 15 * 60 * 1000 // 15 minutes — some models with large context need a long time
-  let combinedSignal = signal
-  let timeoutController: AbortController | undefined
-
-  if (typeof AbortSignal.timeout === "function") {
-    // Combine user signal with timeout
-    timeoutController = new AbortController()
-    const timeoutId = setTimeout(() => timeoutController?.abort(), timeoutMs)
-
-    if (signal) {
-      signal.addEventListener("abort", () => {
-        clearTimeout(timeoutId)
-        timeoutController?.abort()
-      })
-    }
-    combinedSignal = timeoutController.signal
-  }
-
-  let response: Response
+  const apiBase = backendApiBase()
+  const endpoint = (config.provider === "custom" || config.provider === "minimax")
+    ? config.customEndpoint
+    : config.provider === "ollama"
+      ? config.ollamaUrl
+      : ""
   try {
-    response = await fetch(providerConfig.url, {
+    const response = await fetch(`${apiBase}/api/llm/chat`, {
       method: "POST",
-      headers: providerConfig.headers,
-      body: JSON.stringify(providerConfig.buildBody(messages)),
-      signal: combinedSignal,
-      // @ts-ignore — keepalive hint for Tauri webview
-      keepalive: false,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        provider: config.provider,
+        api_key: config.apiKey,
+        model: config.model,
+        endpoint: endpoint || undefined,
+        max_tokens: 4096,
+        timeout_sec: 300,
+        messages,
+      }),
+      signal,
     })
-  } catch (err) {
-    if (err instanceof Error && (err.name === "AbortError" || err.message === "Load failed")) {
-      // Check if it was user-initiated abort
-      if (signal?.aborted) {
-        onDone()
-        return
-      }
-      // Otherwise it's a timeout or network error
-      onError(
-        new Error(
-          `Request timed out or network error (endpoint: ${endpointHost}). This is often caused by unstable provider connection, CORS/gateway interruptions, or a slow model response.`,
-        ),
-      )
+    const payload = await response.json().catch(() => ({}))
+    if (!response.ok) {
+      const detail = payload?.detail ? String(payload.detail) : `HTTP ${response.status}`
+      onError(new Error(detail))
       return
     }
-    onError(err instanceof Error ? err : new Error(String(err)))
-    return
-  }
-
-  if (!response.ok) {
-    let errorDetail = `HTTP ${response.status}: ${response.statusText}`
-    try {
-      const body = await response.text()
-      if (body) errorDetail += ` — ${body}`
-    } catch {
-      // ignore body read failure
-    }
-    onError(new Error(errorDetail))
-    return
-  }
-
-  if (!response.body) {
-    onError(new Error("Response body is null"))
-    return
-  }
-
-  const reader = response.body.getReader()
-  let lineBuffer = ""
-
-  try {
-    while (true) {
-      const { done, value } = await reader.read()
-
-      if (done) {
-        if (lineBuffer.trim()) {
-          const token = providerConfig.parseStream(lineBuffer.trim())
-          if (token !== null) onToken(token)
-        }
-        break
-      }
-
-      const [lines, remaining] = parseLines(value, lineBuffer)
-      lineBuffer = remaining
-
-      for (const line of lines) {
-        const trimmed = line.trim()
-        if (!trimmed) continue
-        const token = providerConfig.parseStream(trimmed)
-        if (token !== null) onToken(token)
-      }
-    }
-
+    const text = typeof payload?.text === "string" ? payload.text : ""
+    if (text) onToken(text)
     onDone()
   } catch (err) {
-    if (err instanceof Error && (err.name === "AbortError" || (signal?.aborted))) {
+    if (err instanceof Error && (err.name === "AbortError" || signal?.aborted)) {
       onDone()
       return
     }
-    if (err instanceof Error && err.message === "Load failed") {
-      // WebKit network error during streaming — connection dropped
-      onError(new Error("Connection lost during streaming. Try again."))
-      return
-    }
     onError(err instanceof Error ? err : new Error(String(err)))
-  } finally {
-    reader.releaseLock()
   }
 }

@@ -1,29 +1,66 @@
+import { Suspense, lazy } from "react"
 import { useWikiStore } from "@/stores/wiki-store"
-import { ChatPanel } from "@/components/chat/chat-panel"
-import { SettingsView } from "@/components/settings/settings-view"
-import { SourcesView } from "@/components/sources/sources-view"
-import { ReviewView } from "@/components/review/review-view"
-import { LintView } from "@/components/lint/lint-view"
-import { SearchView } from "@/components/search/search-view"
-import { GraphView } from "@/components/graph/graph-view"
+
+const ChatPanel = lazy(async () => {
+  const mod = await import("@/components/chat/chat-panel")
+  return { default: mod.ChatPanel }
+})
+const SettingsView = lazy(async () => {
+  const mod = await import("@/components/settings/settings-view")
+  return { default: mod.SettingsView }
+})
+const SourcesView = lazy(async () => {
+  const mod = await import("@/components/sources/sources-view")
+  return { default: mod.SourcesView }
+})
+const ReviewView = lazy(async () => {
+  const mod = await import("@/components/review/review-view")
+  return { default: mod.ReviewView }
+})
+const LintView = lazy(async () => {
+  const mod = await import("@/components/lint/lint-view")
+  return { default: mod.LintView }
+})
+const SearchView = lazy(async () => {
+  const mod = await import("@/components/search/search-view")
+  return { default: mod.SearchView }
+})
+const GraphView = lazy(async () => {
+  const mod = await import("@/components/graph/graph-view")
+  return { default: mod.GraphView }
+})
 
 export function ContentArea() {
   const activeView = useWikiStore((s) => s.activeView)
 
+  let view = <ChatPanel />
   switch (activeView) {
     case "settings":
-      return <SettingsView />
+      view = <SettingsView />
+      break
     case "sources":
-      return <SourcesView />
+      view = <SourcesView />
+      break
     case "review":
-      return <ReviewView />
+      view = <ReviewView />
+      break
     case "lint":
-      return <LintView />
+      view = <LintView />
+      break
     case "search":
-      return <SearchView />
+      view = <SearchView />
+      break
     case "graph":
-      return <GraphView />
+      view = <GraphView />
+      break
     default:
-      return <ChatPanel />
+      view = <ChatPanel />
+      break
   }
+
+  return (
+    <Suspense fallback={<div className="flex h-full items-center justify-center text-sm text-muted-foreground">Loading view...</div>}>
+      {view}
+    </Suspense>
+  )
 }

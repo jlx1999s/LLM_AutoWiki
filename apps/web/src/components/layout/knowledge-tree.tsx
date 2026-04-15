@@ -173,6 +173,7 @@ export function KnowledgeTree() {
 
 function RawSourcesSection() {
   const project = useWikiStore((s) => s.project)
+  const dataVersion = useWikiStore((s) => s.dataVersion)
   const setSelectedFile = useWikiStore((s) => s.setSelectedFile)
   const selectedFile = useWikiStore((s) => s.selectedFile)
   const [expanded, setExpanded] = useState(false)
@@ -184,7 +185,7 @@ function RawSourcesSection() {
     listDirectory(`${pp}/raw/sources`)
       .then((tree) => setSources(flattenAllFiles(tree)))
       .catch(() => setSources([]))
-  }, [project])
+  }, [project, dataVersion])
 
   if (sources.length === 0) return null
 

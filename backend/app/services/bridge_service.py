@@ -5,18 +5,55 @@ import math
 import shutil
 import socket
 import base64
+import tempfile
 from collections import deque
 from pathlib import Path
 from typing import Any
 
-PROJECT_ROOT = Path(__file__).resolve().parents[3]
+from app.core.config import get_settings
+
+
+def _allowed_roots() -> tuple[Path, ...]:
+    settings = get_settings()
+    roots = {
+        settings.project_root.resolve(),
+        settings.data_dir.resolve(),
+        (settings.project_root / "backend" / "projects").resolve(),
+        Path(tempfile.gettempdir()).resolve(),
+    }
+    roots.update(settings.bridge_extra_root_paths)
+    return tuple(sorted(roots))
+
+
+def _is_subpath(path: Path, root: Path) -> bool:
+    try:
+        path.relative_to(root)
+        return True
+    except ValueError:
+        return False
+
+
+def _guard_path_access(path: Path) -> Path:
+    settings = get_settings()
+    if settings.allow_unsafe_bridge_paths:
+        return path
+    if any(_is_subpath(path, root) for root in _allowed_roots()):
+        return path
+    allowed = ", ".join(str(root) for root in _allowed_roots())
+    raise PermissionError(
+        f"Path access denied: {path}. Allowed roots: {allowed}. "
+        "You can set LLM_WIKI_ALLOW_UNSAFE_BRIDGE_PATHS=true for local trusted development."
+    )
+
 
 def _norm(path: str, base: str | None = None) -> Path:
+    settings = get_settings()
     p = Path(path).expanduser()
     if not p.is_absolute():
-        base_path = Path(base).expanduser() if base else PROJECT_ROOT
+        base_path = Path(base).expanduser() if base else settings.project_root
         p = base_path / p
-    return p.resolve()
+    resolved = p.resolve()
+    return _guard_path_access(resolved)
 
 
 def _to_posix(path: Path) -> str:
@@ -24,7 +61,7 @@ def _to_posix(path: Path) -> str:
 
 
 def project_root() -> str:
-    return _to_posix(PROJECT_ROOT)
+    return _to_posix(get_settings().project_root.resolve())
 
 
 def resolve_path(path: str, base: str | None = None, must_exist: bool = False) -> str:
@@ -32,6 +69,13 @@ def resolve_path(path: str, base: str | None = None, must_exist: bool = False) -
     if must_exist and not p.exists():
         raise FileNotFoundError(f"Path not found: {p}")
     return _to_posix(p)
+
+
+def resolve_guarded_file(path: str) -> Path:
+    p = _norm(path)
+    if not p.exists() or not p.is_file():
+        raise FileNotFoundError(f"File not found: {p}")
+    return p
 
 
 def read_file(path: str) -> str:
@@ -182,7 +226,8 @@ def list_projects(
     max_depth: int = 3,
     limit: int = 50,
 ) -> list[dict[str, str]]:
-    root = _norm(base, base=PROJECT_ROOT) if base else PROJECT_ROOT
+    root = _norm(base) if base else get_settings().project_root.resolve()
+    root = _guard_path_access(root)
     if not root.exists() or not root.is_dir():
         return []
 

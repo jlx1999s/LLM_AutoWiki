@@ -112,3 +112,34 @@ class MiniMaxProxyRequest(BaseModel):
 
 class MiniMaxProxyResponse(BaseModel):
     text: str
+
+
+class LlmChatRequest(BaseModel):
+    provider: Literal["openai", "anthropic", "google", "ollama", "custom", "minimax"]
+    api_key: str = ""
+    model: str
+    messages: list[LlmMessage]
+    endpoint: Optional[str] = None
+    max_tokens: int = Field(default=4096, ge=1, le=32768)
+    timeout_sec: Optional[int] = Field(default=None, ge=10, le=900)
+
+
+class LlmChatResponse(BaseModel):
+    text: str
+
+
+class TavilySearchRequest(BaseModel):
+    api_key: str
+    query: str
+    max_results: int = Field(default=10, ge=1, le=20)
+
+
+class WebSearchResult(BaseModel):
+    title: str
+    url: str
+    snippet: str
+    source: str
+
+
+class TavilySearchResponse(BaseModel):
+    results: list[WebSearchResult]

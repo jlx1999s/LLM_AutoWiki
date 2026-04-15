@@ -22,7 +22,9 @@ export function SourcesView() {
   const setFileTree = useWikiStore((s) => s.setFileTree)
   const setChatExpanded = useWikiStore((s) => s.setChatExpanded)
   const llmConfig = useWikiStore((s) => s.llmConfig)
+  const dataVersion = useWikiStore((s) => s.dataVersion)
   const [sources, setSources] = useState<FileNode[]>([])
+  const [orphanedSources, setOrphanedSources] = useState<string[]>([])
   const [importing, setImporting] = useState(false)
   const [ingestingPath, setIngestingPath] = useState<string | null>(null)
 
@@ -34,14 +36,21 @@ export function SourcesView() {
       // Filter out hidden files/dirs and cache
       const filtered = filterTree(tree)
       setSources(filtered)
+      const rawSourceNames = new Set(flattenAllFileNames(filtered).map((n) => n.toLowerCase()))
+      const referenced = await collectReferencedSourceNames(pp)
+      const missing = referenced
+        .filter((name) => !rawSourceNames.has(name.toLowerCase()))
+        .sort((a, b) => a.localeCompare(b))
+      setOrphanedSources(missing)
     } catch {
       setSources([])
+      setOrphanedSources([])
     }
   }, [project])
 
   useEffect(() => {
     loadSources()
-  }, [loadSources])
+  }, [loadSources, dataVersion])
 
   async function handleImport() {
     if (!project) return
@@ -218,25 +227,20 @@ export function SourcesView() {
     }
   }
 
-  async function handleDelete(node: FileNode) {
+  async function runSourceCleanup(
+    fileName: string,
+    options: { deleteRaw: boolean; sourcePath?: string | null },
+  ) {
     if (!project) return
     const pp = normalizePath(project.path)
-    const fileName = node.name
-    const confirmed = window.confirm(
-      t("sources.deleteConfirm", { name: fileName })
-    )
-    if (!confirmed) return
-
     try {
       // Step 1: Find related wiki pages before deleting
       const relatedPages = await findRelatedWikiPages(pp, fileName)
-      const deletedSlugs = relatedPages.map((p) => {
-        const name = getFileName(p).replace(".md", "")
-        return name
-      }).filter(Boolean)
 
-      // Step 2: Delete the source file
-      await deleteFile(node.path)
+      // Step 2: Delete the source file when requested
+      if (options.deleteRaw && options.sourcePath) {
+        await deleteFile(options.sourcePath)
+      }
 
       // Step 3: Delete preprocessed cache
       try {
@@ -332,7 +336,11 @@ export function SourcesView() {
         const logContent = await readFile(logPath).catch(() => "# Wiki Log\n")
         const date = new Date().toISOString().slice(0, 10)
         const keptCount = relatedPages.length - actuallyDeleted.length
-        const logEntry = `\n## [${date}] delete | ${fileName}\n\nDeleted source file and ${actuallyDeleted.length} wiki pages.${keptCount > 0 ? ` ${keptCount} shared pages kept (have other sources).` : ""}\n`
+        const action = options.deleteRaw ? "delete" : "cleanup"
+        const mainText = options.deleteRaw
+          ? `Deleted source file and ${actuallyDeleted.length} wiki pages.`
+          : `Cleaned orphan source reference and ${actuallyDeleted.length} wiki pages (raw source file already missing).`
+        const logEntry = `\n## [${date}] ${action} | ${fileName}\n\n${mainText}${keptCount > 0 ? ` ${keptCount} shared pages kept (have other sources).` : ""}\n`
         await writeFile(logPath, logContent.trimEnd() + logEntry)
       } catch {
         // non-critical
@@ -345,13 +353,43 @@ export function SourcesView() {
       useWikiStore.getState().bumpDataVersion()
 
       // Clear selected file if it was the deleted one
-      if (selectedFile === node.path || actuallyDeleted.includes(selectedFile ?? "")) {
+      if (
+        (options.sourcePath && selectedFile === options.sourcePath) ||
+        actuallyDeleted.includes(selectedFile ?? "")
+      ) {
         setSelectedFile(null)
       }
     } catch (err) {
-      console.error("Failed to delete source:", err)
-      window.alert(`Failed to delete: ${err}`)
+      console.error("Failed to clean source:", err)
+      window.alert(`Failed to clean source: ${err}`)
     }
+  }
+
+  async function handleDelete(node: FileNode) {
+    const fileName = node.name
+    const confirmed = window.confirm(
+      t("sources.deleteConfirm", { name: fileName })
+    )
+    if (!confirmed) return
+    const typed = window.prompt(`输入 DELETE 确认永久删除资料「${fileName}」`)
+    if (typed !== "DELETE") return
+    await runSourceCleanup(fileName, { deleteRaw: true, sourcePath: node.path })
+  }
+
+  async function handleCleanupOrphan(fileName: string) {
+    const confirmed = window.confirm(
+      t(
+        "sources.cleanupMissingConfirm",
+        {
+          name: fileName,
+          defaultValue: `原始资料「${fileName}」已不存在。是否清理它关联的 Wiki 页面和索引引用？`,
+        },
+      ),
+    )
+    if (!confirmed) return
+    const typed = window.prompt(`输入 DELETE 确认清理孤儿来源「${fileName}」的关联资源`)
+    if (typed !== "DELETE") return
+    await runSourceCleanup(fileName, { deleteRaw: false, sourcePath: null })
   }
 
   async function handleIngest(node: FileNode) {
@@ -388,7 +426,7 @@ export function SourcesView() {
       </div>
 
       <ScrollArea className="flex-1">
-        {sources.length === 0 ? (
+        {sources.length === 0 && orphanedSources.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-3 p-8 text-center text-sm text-muted-foreground">
             <p>{t("sources.noSources")}</p>
             <p>{t("sources.importHint")}</p>
@@ -404,21 +442,37 @@ export function SourcesView() {
             </div>
           </div>
         ) : (
-          <div className="p-2">
-            <SourceTree
-              nodes={sources}
-              onOpen={handleOpenSource}
-              onIngest={handleIngest}
-              onDelete={handleDelete}
-              ingestingPath={ingestingPath}
-              depth={0}
-            />
+          <div className="p-2 space-y-3">
+            {sources.length > 0 && (
+              <SourceTree
+                nodes={sources}
+                onOpen={handleOpenSource}
+                onIngest={handleIngest}
+                onDelete={handleDelete}
+                ingestingPath={ingestingPath}
+                depth={0}
+              />
+            )}
+            {orphanedSources.length > 0 && (
+              <OrphanSourceList
+                sourceNames={orphanedSources}
+                onCleanup={handleCleanupOrphan}
+              />
+            )}
           </div>
         )}
       </ScrollArea>
 
       <div className="border-t px-4 py-2 text-xs text-muted-foreground">
         {t("sources.sourceCount", { count: countFiles(sources) })}
+        {orphanedSources.length > 0 && (
+          <span className="ml-2 text-amber-700">
+            {t("sources.missingSourcesCount", {
+              count: orphanedSources.length,
+              defaultValue: `孤儿来源 ${orphanedSources.length} 个`,
+            })}
+          </span>
+        )}
       </div>
     </div>
   )
@@ -593,6 +647,119 @@ function SourceTree({
       })}
     </>
   )
+}
+
+function OrphanSourceList({
+  sourceNames,
+  onCleanup,
+}: {
+  sourceNames: string[]
+  onCleanup: (name: string) => void
+}) {
+  const { t } = useTranslation()
+  return (
+    <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-2">
+      <div className="px-2 pb-2 text-xs font-medium text-amber-700">
+        {t("sources.missingSourcesTitle", { defaultValue: "孤儿来源（原始文件已缺失）" })}
+      </div>
+      <div className="space-y-1">
+        {sourceNames.map((name) => (
+          <div
+            key={name}
+            className="flex items-center gap-2 rounded-md px-2 py-1 text-sm text-muted-foreground hover:bg-accent/50"
+          >
+            <FileText className="h-4 w-4 shrink-0" />
+            <span className="flex-1 truncate">{name}</span>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 shrink-0 text-muted-foreground hover:text-destructive"
+              title={t("sources.cleanupMissing", { defaultValue: "清理关联资源" })}
+              onClick={() => onCleanup(name)}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+async function collectReferencedSourceNames(projectPath: string): Promise<string[]> {
+  const refs = new Set<string>()
+  try {
+    const wikiTree = await listDirectory(`${projectPath}/wiki`)
+    const pages = flattenMdFiles(wikiTree)
+    for (const page of pages) {
+      try {
+        const content = await readFile(page.path)
+        const names = parseSourcesFromFrontmatter(content)
+        for (const name of names) refs.add(name)
+      } catch {
+        // ignore single-page read errors
+      }
+    }
+  } catch {
+    // ignore wiki listing errors
+  }
+  return [...refs]
+}
+
+function parseSourcesFromFrontmatter(content: string): string[] {
+  const header = extractYamlHeader(content)
+  if (!header) return []
+  const lines = header.split(/\r?\n/)
+
+  for (let i = 0; i < lines.length; i++) {
+    const m = lines[i].match(/^\s*sources\s*:\s*(.*)\s*$/)
+    if (!m) continue
+    const tail = m[1].trim()
+
+    if (tail.startsWith("[") && tail.endsWith("]")) {
+      return tail
+        .slice(1, -1)
+        .split(",")
+        .map((s) => normalizeYamlValue(s))
+        .filter((s) => s.length > 0)
+    }
+
+    if (tail.length > 0) {
+      const single = normalizeYamlValue(tail)
+      return single ? [single] : []
+    }
+
+    const items: string[] = []
+    for (let j = i + 1; j < lines.length; j++) {
+      const line = lines[j]
+      const keyLike = line.match(/^\s*[A-Za-z_][\w-]*\s*:/)
+      if (keyLike) break
+      const li = line.match(/^\s*-\s*(.+)\s*$/)
+      if (!li) {
+        if (line.trim() === "") continue
+        break
+      }
+      const value = normalizeYamlValue(li[1])
+      if (value) items.push(value)
+    }
+    return items
+  }
+
+  return []
+}
+
+function extractYamlHeader(content: string): string | null {
+  const normalFm = content.match(/^---\r?\n([\s\S]*?)\r?\n---/)
+  if (normalFm) return normalFm[1]
+
+  const fencedYaml = content.match(/^```ya?ml\r?\n([\s\S]*?)\r?\n```/i)
+  if (fencedYaml) return fencedYaml[1]
+
+  return null
+}
+
+function normalizeYamlValue(raw: string): string {
+  return raw.trim().replace(/^["']/, "").replace(/["']$/, "")
 }
 
 function flattenMdFiles(nodes: FileNode[]): FileNode[] {

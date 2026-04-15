@@ -1,7 +1,7 @@
 {
   "app": {
-    "title": "LLM Wiki",
-    "subtitle": "用 LLM 构建和维护你的个人知识库"
+    "title": "二进制思考 Wiki",
+    "subtitle": "二进制思考 · 用 LLM 构建和维护你的个人知识库"
   },
   "nav": {
     "wiki": "Wiki",
@@ -19,7 +19,7 @@
     "recentProjects": "最近项目"
   },
   "project": {
-    "createTitle": "新建 Wiki 项目",
+    "createTitle": "新建二进制思考 Wiki 项目",
     "name": "项目名称",
     "namePlaceholder": "my-research-wiki",
     "parentDir": "父目录",
@@ -38,6 +38,11 @@
     "ingest": "提取到 Wiki",
     "delete": "删除资料及相关 Wiki 页面",
     "deleteConfirm": "删除「{{name}}」及其相关 Wiki 页面？\n\n此操作将：\n- 删除原始资料文件\n- 删除由该资料生成的 Wiki 页面\n- 更新 index.md",
+    "missingSourcesTitle": "孤儿来源（原始文件已缺失）",
+    "cleanupMissing": "清理关联资源",
+    "cleanupMissingConfirm": "原始资料「{{name}}」已不存在。是否清理它关联的 Wiki 页面和索引引用？",
+    "missingSourcesCount": "孤儿来源 {{count}} 个",
+    "missingSourcesCount_plural": "孤儿来源 {{count}} 个",
     "sourceCount": "{{count}} 个资料",
     "sourceCount_plural": "{{count}} 个资料"
   },

@@ -1,7 +1,7 @@
 [project]
 name = "llm-autowiki-backend"
 version = "0.1.0"
-description = "Python backend for LLM Wiki Studio"
+description = "Python backend for Binary Thinking Wiki Studio"
 readme = "README.md"
 requires-python = ">=3.9"
 dependencies = [
@@ -9,6 +9,7 @@ dependencies = [
   "uvicorn[standard]>=0.30.0,<0.32.0",
   "pydantic-settings>=2.3.0,<2.6.0",
   "sqlalchemy>=2.0.30,<2.1.0",
+  "alembic>=1.13.2,<1.14.0",
 ]
 
 [project.optional-dependencies]

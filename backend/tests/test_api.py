@@ -3,6 +3,7 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from app.api import llm as llm_api
+from app.api import search as search_api
 from app.main import app
 
 
@@ -17,12 +18,12 @@ def test_root_page() -> None:
     with TestClient(app) as client:
         response = client.get("/")
         assert response.status_code == 200
-        assert "LLM Wiki Studio" in response.text
+        assert "二进制思考 Wiki Studio" in response.text
 
 
 def test_ingest_build_and_qa(tmp_path: Path) -> None:
     sample_file = tmp_path / "sample.md"
-    sample_file.write_text("# LLM\nLLM Wiki can compile documents into pages.", encoding="utf-8")
+    sample_file.write_text("# LLM\nBinary Thinking Wiki can compile documents into pages.", encoding="utf-8")
 
     with TestClient(app) as client:
         ingest_resp = client.post("/api/ingest", json={"path": str(sample_file), "recursive": False})
@@ -36,7 +37,7 @@ def test_ingest_build_and_qa(tmp_path: Path) -> None:
 
         qa_resp = client.post(
             "/api/qa/query",
-            json={"question": "LLM Wiki 做什么？", "top_k": 3, "strategy": "hybrid"},
+            json={"question": "二进制思考 Wiki 做什么？", "top_k": 3, "strategy": "hybrid"},
         )
         assert qa_resp.status_code == 200
         qa_payload = qa_resp.json()
@@ -305,3 +306,59 @@ def test_llm_minimax_proxy(monkeypatch) -> None:
         )
         assert resp.status_code == 200
         assert resp.json()["text"] == "proxy ok"
+
+
+def test_llm_chat_proxy(monkeypatch) -> None:
+    def fake_chat(**_: object) -> str:
+        return "chat ok"
+
+    monkeypatch.setattr(llm_api, "run_chat_completion", fake_chat)
+
+    with TestClient(app) as client:
+        resp = client.post(
+            "/api/llm/chat",
+            json={
+                "provider": "openai",
+                "api_key": "k",
+                "model": "gpt-4o-mini",
+                "messages": [{"role": "user", "content": "hello"}],
+            },
+        )
+        assert resp.status_code == 200
+        assert resp.json()["text"] == "chat ok"
+
+
+def test_search_tavily_proxy(monkeypatch) -> None:
+    def fake_search(**_: object) -> list[dict[str, str]]:
+        return [
+            {
+                "title": "t",
+                "url": "https://example.com",
+                "snippet": "s",
+                "source": "example.com",
+            }
+        ]
+
+    monkeypatch.setattr(search_api, "tavily_search", fake_search)
+
+    with TestClient(app) as client:
+        resp = client.post(
+            "/api/search/tavily",
+            json={
+                "api_key": "k",
+                "query": "binary thinking",
+                "max_results": 3,
+            },
+        )
+        assert resp.status_code == 200
+        payload = resp.json()
+        assert payload["results"][0]["source"] == "example.com"
+
+
+def test_bridge_denies_outside_safe_roots() -> None:
+    with TestClient(app) as client:
+        resp = client.post(
+            "/api/bridge/invoke",
+            json={"command": "read_file", "args": {"path": "/etc/hosts"}},
+        )
+        assert resp.status_code == 403

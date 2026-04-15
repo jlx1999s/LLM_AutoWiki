@@ -140,7 +140,6 @@ export function getProviderConfig(config: LlmConfig): ProviderConfig {
           "Content-Type": JSON_CONTENT_TYPE,
           "x-api-key": apiKey,
           "anthropic-version": "2023-06-01",
-          "anthropic-dangerous-direct-browser-access": "true",
         },
         buildBody: (messages) => ({
           ...buildAnthropicBody(messages),
@@ -183,7 +182,6 @@ export function getProviderConfig(config: LlmConfig): ProviderConfig {
           "x-api-key": apiKey.trim(),
           Authorization: `Bearer ${apiKey.trim()}`,
           "anthropic-version": "2023-06-01",
-          "anthropic-dangerous-direct-browser-access": "true",
         },
         buildBody: (messages) => ({
           ...buildAnthropicBody(messages),

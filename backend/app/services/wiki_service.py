@@ -15,7 +15,7 @@ def build_wiki(db: Session) -> tuple[int, Path]:
     pages_dir.mkdir(parents=True, exist_ok=True)
 
     generated = 0
-    index_lines = ["# LLM Wiki Index", "", f"_Updated: {datetime.utcnow().isoformat()}_", ""]
+    index_lines = ["# Binary Thinking Wiki Index", "", f"_Updated: {datetime.utcnow().isoformat()}_", ""]
     for doc in list_documents(db):
         base_slug = slugify(doc.title)
         # Keep slugs stable and globally unique across rebuilds.

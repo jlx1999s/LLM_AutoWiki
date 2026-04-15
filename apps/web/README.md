@@ -1,4 +1,4 @@
-# LLM Wiki Frontend (Upstream Sync)
+# Binary Thinking Wiki Frontend
 
 This folder contains a full frontend sync from:
 
@@ -34,3 +34,5 @@ VITE_BACKEND_URL=http://127.0.0.1:8000 npm run dev
 - Shim `invoke` calls backend bridge endpoint: `/api/bridge/invoke`.
 - Path dialog shim supports relative paths and remembers the last base directory.
 - Open/Create project flows now provide candidate directory selection (recent + auto-discovered), reducing manual path typing.
+- LLM and web search calls are proxied through backend (`/api/llm/chat`, `/api/search/tavily`) instead of browser direct-to-provider calls.
+- API keys are treated as session-only and are not persisted to disk.

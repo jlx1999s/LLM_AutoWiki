@@ -1,7 +1,7 @@
 {
   "app": {
-    "title": "LLM Wiki",
-    "subtitle": "Build and maintain your personal knowledge base with LLMs"
+    "title": "Binary Thinking Wiki",
+    "subtitle": "Binary Thinking · Build and maintain your personal knowledge base with LLMs"
   },
   "nav": {
     "wiki": "Wiki",
@@ -19,7 +19,7 @@
     "recentProjects": "Recent Projects"
   },
   "project": {
-    "createTitle": "Create New Wiki Project",
+    "createTitle": "Create New Binary Thinking Wiki Project",
     "name": "Project Name",
     "namePlaceholder": "my-research-wiki",
     "parentDir": "Parent Directory",
@@ -38,6 +38,11 @@
     "ingest": "Ingest",
     "delete": "Delete source and related wiki pages",
     "deleteConfirm": "Delete \"{{name}}\" and its related wiki pages?\n\nThis will:\n- Delete the source file\n- Delete wiki pages generated from this source\n- Update index.md",
+    "missingSourcesTitle": "Orphan Sources (raw file missing)",
+    "cleanupMissing": "Clean linked pages",
+    "cleanupMissingConfirm": "Raw source \"{{name}}\" is missing. Clean its linked wiki pages and index references?",
+    "missingSourcesCount": "{{count}} orphan source",
+    "missingSourcesCount_plural": "{{count}} orphan sources",
     "sourceCount": "{{count}} source",
     "sourceCount_plural": "{{count}} sources"
   },

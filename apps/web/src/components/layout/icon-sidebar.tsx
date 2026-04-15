@@ -7,7 +7,7 @@ import { useWikiStore } from "@/stores/wiki-store"
 import { useReviewStore } from "@/stores/review-store"
 import { useResearchStore } from "@/stores/research-store"
 import { useTranslation } from "react-i18next"
-import logoImg from "@/assets/logo.jpg"
+import logoImg from "@/assets/binary-thinking-logo.svg"
 import type { WikiState } from "@/stores/wiki-store"
 
 type NavView = WikiState["activeView"]
@@ -58,7 +58,7 @@ export function IconSidebar({ onSwitchProject }: IconSidebarProps) {
         <div className="mb-2 flex items-center justify-center">
           <img
             src={logoImg}
-            alt="LLM Wiki"
+            alt="Binary Thinking Wiki"
             className="h-8 w-8 rounded-[22%]"
           />
         </div>

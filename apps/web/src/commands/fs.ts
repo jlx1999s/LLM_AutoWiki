@@ -53,3 +53,15 @@ export async function openProject(path: string): Promise<WikiProject> {
 export async function clipServerStatus(): Promise<string> {
   return invoke<string>("clip_server_status")
 }
+
+export async function listProjects(
+  base?: string,
+  maxDepth = 4,
+  limit = 30
+): Promise<WikiProject[]> {
+  return invoke<WikiProject[]>("list_projects", {
+    base,
+    max_depth: maxDepth,
+    limit,
+  })
+}

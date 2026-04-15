@@ -49,4 +49,37 @@ export default defineConfig(async () => ({
   test: {
     environment: "node",
   },
+
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes("/@codemirror/")) {
+            return "codemirror-vendor"
+          }
+          if (id.includes("/prosemirror-")) {
+            return "prosemirror-vendor"
+          }
+          if (id.includes("@milkdown/")) {
+            return "milkdown-vendor"
+          }
+          if (id.includes("katex") || id.includes("rehype-katex") || id.includes("remark-math")) {
+            return "math-vendor"
+          }
+          if (
+            id.includes("@react-sigma/") ||
+            id.includes("graphology") ||
+            id.includes("forceatlas2") ||
+            id.includes("/sigma/")
+          ) {
+            return "graph-vendor"
+          }
+          if (id.includes("react-markdown") || id.includes("remark-gfm")) {
+            return "markdown-vendor"
+          }
+          return undefined
+        },
+      },
+    },
+  },
 }))

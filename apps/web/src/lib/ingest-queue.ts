@@ -154,8 +154,12 @@ export async function cancelTask(projectPath: string, taskId: string): Promise<v
     if (lastWrittenFiles.length > 0) {
       const { deleteFile } = await import("@/commands/fs")
       for (const filePath of lastWrittenFiles) {
+        const normalized = normalizePath(filePath)
+        const isWikiRelative = normalized.startsWith("wiki/")
+        const isWikiAbsolute = normalized.includes("/wiki/")
+        if (!isWikiRelative && !isWikiAbsolute) continue
         try {
-          const fullPath = filePath.startsWith("/") ? filePath : `${normalizePath(projectPath)}/${filePath}`
+          const fullPath = normalized.startsWith("/") ? normalized : `${normalizePath(projectPath)}/${normalized}`
           await deleteFile(fullPath)
         } catch {
           // file may not exist

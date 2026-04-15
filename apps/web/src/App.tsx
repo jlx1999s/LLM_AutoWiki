@@ -4,8 +4,9 @@ import i18n from "@/i18n"
 import { useWikiStore } from "@/stores/wiki-store"
 import { useReviewStore } from "@/stores/review-store"
 import { useChatStore } from "@/stores/chat-store"
-import { listDirectory, openProject } from "@/commands/fs"
-import { getLastProject, getRecentProjects, saveLastProject, loadLlmConfig, loadLanguage, loadSearchApiConfig, loadEmbeddingConfig } from "@/lib/project-store"
+import { listDirectory, listProjects, openProject } from "@/commands/fs"
+import { restoreQueue } from "@/lib/ingest-queue"
+import { getLastProject, getRecentProjects, mergeRecentProjects, saveLastProject, loadLlmConfig, loadLanguage, loadSearchApiConfig, loadEmbeddingConfig } from "@/lib/project-store"
 import { loadReviewItems, loadChatHistory } from "@/lib/persist"
 import { setupAutoSave } from "@/lib/auto-save"
 import { startClipWatcher } from "@/lib/clip-watcher"
@@ -49,6 +50,12 @@ function App() {
         if (savedLang) {
           await i18n.changeLanguage(savedLang)
         }
+        try {
+          const discovered = await listProjects(undefined, 4, 50)
+          await mergeRecentProjects(discovered)
+        } catch {
+          // ignore discovery errors
+        }
         const lastProject = await getLastProject()
         if (lastProject) {
           try {
@@ -74,11 +81,9 @@ function App() {
     await saveLastProject(proj)
 
     // Restore ingest queue (resume interrupted tasks)
-    import("@/lib/ingest-queue").then(({ restoreQueue }) => {
-      restoreQueue(proj.path).catch((err) =>
-        console.error("Failed to restore ingest queue:", err)
-      )
-    })
+    restoreQueue(proj.path).catch((err) =>
+      console.error("Failed to restore ingest queue:", err)
+    )
     // Notify local clip server of the current project + all recent projects
     fetch("http://127.0.0.1:19827/project", {
       method: "POST",
@@ -140,7 +145,7 @@ function App() {
     const selected = await open({
       directory: true,
       multiple: false,
-      title: "Open Wiki Project",
+      title: "Open Binary Thinking Wiki Project",
     })
     if (!selected) return
     try {

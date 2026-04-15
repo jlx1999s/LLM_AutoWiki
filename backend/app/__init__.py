@@ -1,2 +1,1 @@
-"""LLM Wiki backend package."""
-
+"""Binary Thinking Wiki backend package."""

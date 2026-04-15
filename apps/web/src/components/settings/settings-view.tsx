@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label"
 import { useState, useEffect } from "react"
 import { useTranslation } from "react-i18next"
 import i18n from "@/i18n"
-import { saveLanguage } from "@/lib/project-store"
+import { saveEmbeddingConfig, saveLanguage, saveLlmConfig, saveSearchApiConfig } from "@/lib/project-store"
 
 const PROVIDERS = [
   { value: "openai" as const, label: "OpenAI", models: ["gpt-4o", "gpt-4.1", "gpt-4o-mini"] },
@@ -66,7 +66,6 @@ export function SettingsView() {
   const currentProvider = PROVIDERS.find((p) => p.value === provider)
 
   async function handleSave() {
-    const { saveLlmConfig, saveSearchApiConfig, saveEmbeddingConfig } = await import("@/lib/project-store")
     const newConfig = {
       provider,
       apiKey: apiKey.trim(),
@@ -193,6 +192,9 @@ export function SettingsView() {
                       : t("settings.apiKeyPlaceholder", { provider: currentProvider?.label })
                   }
                 />
+                <p className="text-xs text-muted-foreground">
+                  For security, API keys are session-only and are not saved to disk.
+                </p>
               </div>
             )}
 
@@ -283,6 +285,9 @@ export function SettingsView() {
                   onChange={(e) => setSearchApiKey(e.target.value)}
                   placeholder="Enter your Tavily API key (tavily.com)"
                 />
+                <p className="text-xs text-muted-foreground">
+                  For security, this key is session-only and is not saved to disk.
+                </p>
               </div>
             )}
           </div>
@@ -325,6 +330,9 @@ export function SettingsView() {
                     onChange={(e) => setEmbeddingApiKey(e.target.value)}
                     placeholder="Leave empty for local models"
                   />
+                  <p className="text-xs text-muted-foreground">
+                    For security, this key is session-only and is not saved to disk.
+                  </p>
                 </div>
                 <div className="space-y-2">
                   <Label>Model</Label>

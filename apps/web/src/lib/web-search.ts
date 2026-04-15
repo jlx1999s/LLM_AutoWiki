@@ -24,20 +24,24 @@ export async function webSearch(
   }
 }
 
+function backendApiBase(): string {
+  const defaultBackend = `${window.location.protocol}//${window.location.hostname || "127.0.0.1"}:8000`
+  const env = (import.meta as ImportMeta & { env: { VITE_BACKEND_URL?: string } }).env
+  return env.VITE_BACKEND_URL || (window.location.port === "8000" ? window.location.origin : defaultBackend)
+}
+
 async function tavilySearch(
   query: string,
   apiKey: string,
   maxResults: number,
 ): Promise<WebSearchResult[]> {
-  const response = await fetch("https://api.tavily.com/search", {
+  const response = await fetch(`${backendApiBase()}/api/search/tavily`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       api_key: apiKey,
       query,
       max_results: maxResults,
-      search_depth: "advanced",
-      include_answer: false,
     }),
   })
 
@@ -48,10 +52,10 @@ async function tavilySearch(
 
   const data = await response.json()
 
-  return (data.results ?? []).map((r: { title: string; url: string; content: string }) => ({
+  return (data.results ?? []).map((r: { title: string; url: string; snippet: string; source: string }) => ({
     title: r.title ?? "Untitled",
     url: r.url ?? "",
-    snippet: r.content ?? "",
-    source: new URL(r.url).hostname.replace("www.", ""),
+    snippet: r.snippet ?? "",
+    source: r.source ?? "",
   }))
 }

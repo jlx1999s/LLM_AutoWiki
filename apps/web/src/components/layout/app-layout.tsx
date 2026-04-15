@@ -1,15 +1,28 @@
-import { useCallback, useEffect, useRef, useState } from "react"
+import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react"
 import { useWikiStore } from "@/stores/wiki-store"
 import { listDirectory } from "@/commands/fs"
 import { normalizePath } from "@/lib/path-utils"
 import { IconSidebar } from "./icon-sidebar"
-import { SidebarPanel } from "./sidebar-panel"
 import { ContentArea } from "./content-area"
-import { PreviewPanel } from "./preview-panel"
-import { ResearchPanel } from "./research-panel"
-import { ActivityPanel } from "./activity-panel"
 import { useResearchStore } from "@/stores/research-store"
 import { ErrorBoundary } from "@/components/error-boundary"
+
+const SidebarPanel = lazy(async () => {
+  const mod = await import("./sidebar-panel")
+  return { default: mod.SidebarPanel }
+})
+const PreviewPanel = lazy(async () => {
+  const mod = await import("./preview-panel")
+  return { default: mod.PreviewPanel }
+})
+const ResearchPanel = lazy(async () => {
+  const mod = await import("./research-panel")
+  return { default: mod.ResearchPanel }
+})
+const ActivityPanel = lazy(async () => {
+  const mod = await import("./activity-panel")
+  return { default: mod.ActivityPanel }
+})
 
 interface AppLayoutProps {
   onSwitchProject: () => void
@@ -93,9 +106,13 @@ export function AppLayout({ onSwitchProject }: AppLayoutProps) {
           style={{ width: leftWidth }}
         >
           <div className="flex-1 overflow-hidden">
-            <SidebarPanel />
+            <Suspense fallback={<div className="h-full p-3 text-xs text-muted-foreground">Loading sidebar...</div>}>
+              <SidebarPanel />
+            </Suspense>
           </div>
-          <ActivityPanel />
+          <Suspense fallback={<div className="border-t p-2 text-xs text-muted-foreground">Loading activity...</div>}>
+            <ActivityPanel />
+          </Suspense>
         </div>
         <div
           className="w-1.5 shrink-0 cursor-col-resize bg-border/40 transition-colors hover:bg-primary/30 active:bg-primary/40"
@@ -124,13 +141,17 @@ export function AppLayout({ onSwitchProject }: AppLayoutProps) {
                 {/* File preview on top (if file selected) */}
                 {selectedFile && (
                   <div className={researchPanelOpen ? "flex-1 overflow-hidden border-b" : "flex-1 overflow-hidden"}>
-                    <PreviewPanel />
+                    <Suspense fallback={<div className="h-full p-3 text-xs text-muted-foreground">Loading preview...</div>}>
+                      <PreviewPanel />
+                    </Suspense>
                   </div>
                 )}
                 {/* Research panel on bottom (if open) */}
                 {researchPanelOpen && (
                   <div className={selectedFile ? "h-1/2 shrink-0 overflow-hidden" : "flex-1 overflow-hidden"}>
-                    <ResearchPanel />
+                    <Suspense fallback={<div className="h-full p-3 text-xs text-muted-foreground">Loading research...</div>}>
+                      <ResearchPanel />
+                    </Suspense>
                   </div>
                 )}
               </ErrorBoundary>

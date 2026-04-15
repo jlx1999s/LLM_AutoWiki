@@ -13,6 +13,7 @@ import { getTemplate } from "@/lib/templates"
 import { TemplatePicker } from "@/components/project/template-picker"
 import type { WikiProject } from "@/types/wiki"
 import { normalizePath } from "@/lib/path-utils"
+import { useTranslation } from "react-i18next"
 
 interface CreateProjectDialogProps {
   open: boolean
@@ -21,6 +22,7 @@ interface CreateProjectDialogProps {
 }
 
 export function CreateProjectDialog({ open: isOpen, onOpenChange, onCreated }: CreateProjectDialogProps) {
+  const { t } = useTranslation()
   const [name, setName] = useState("")
   const [path, setPath] = useState("")
   const [selectedTemplate, setSelectedTemplate] = useState("general")
@@ -92,7 +94,7 @@ export function CreateProjectDialog({ open: isOpen, onOpenChange, onCreated }: C
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>Create New Wiki Project</DialogTitle>
+          <DialogTitle>{t("project.createTitle")}</DialogTitle>
         </DialogHeader>
         <div className="flex flex-col gap-4 py-4">
           <div className="flex flex-col gap-2">

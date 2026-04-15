@@ -1,10 +1,12 @@
 import time
 from typing import Literal
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session, joinedload
 
+from app.core.config import get_settings
 from app.retrieval.lexical import lexical_overlap_score
+from app.retrieval.lexical import tokenize as lexical_tokenize
 from app.retrieval.vector import vector_similarity
 from app.store.models import Chunk
 
@@ -28,12 +30,31 @@ def answer_question(
     strategy: Literal["lexical", "vector", "hybrid"] = "hybrid",
 ) -> dict:
     started = time.perf_counter()
+    settings = get_settings()
+    candidate_limit = settings.qa_candidate_limit
+    tokens = [t for t in lexical_tokenize(question) if len(t) >= 2][:8]
 
-    chunks = list(
-        db.scalars(
-            select(Chunk).options(joinedload(Chunk.document)).order_by(Chunk.id.desc())
-        )
+    base_stmt = (
+        select(Chunk)
+        .options(joinedload(Chunk.document))
+        .order_by(Chunk.id.desc())
+        .limit(candidate_limit)
     )
+    if strategy in {"lexical", "hybrid"} and tokens:
+        predicates = [Chunk.text.ilike(f"%{t}%") for t in tokens]
+        stmt = (
+            select(Chunk)
+            .options(joinedload(Chunk.document))
+            .where(or_(*predicates))
+            .order_by(Chunk.id.desc())
+            .limit(candidate_limit)
+        )
+    else:
+        stmt = base_stmt
+
+    chunks = list(db.scalars(stmt))
+    if not chunks and tokens:
+        chunks = list(db.scalars(base_stmt))
     scored: list[tuple[float, float, float, Chunk]] = []
     for chunk in chunks:
         lexical_score = lexical_overlap_score(question, chunk.text)
