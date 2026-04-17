@@ -162,6 +162,13 @@ def _extract_google_text(parsed: dict[str, Any]) -> str:
     raise RuntimeError("Google upstream returned empty text")
 
 
+def _wrap_provider_error(provider: Provider, model: str, url: str, exc: RuntimeError) -> RuntimeError:
+    msg = str(exc).strip()
+    return RuntimeError(
+        f"{provider} request failed (model={model}, endpoint={url}): {msg}"
+    )
+
+
 def run_chat_completion(
     provider: Provider,
     api_key: str,
@@ -198,7 +205,10 @@ def run_chat_completion(
                 headers["Authorization"] = f"Bearer {key}"
         payload = {"model": model, "messages": messages, "max_tokens": max_tokens, "stream": False}
         parsed = _request_json(url, headers, payload, timeout_sec)
-        return _extract_openai_text(parsed)
+        try:
+            return _extract_openai_text(parsed)
+        except RuntimeError as exc:
+            raise _wrap_provider_error(provider, model, url, exc) from exc
 
     if provider in {"anthropic", "minimax"}:
         key = api_key.strip()
@@ -222,7 +232,10 @@ def run_chat_completion(
         if system_text:
             payload["system"] = system_text
         parsed = _request_json(url, headers, payload, timeout_sec)
-        return _extract_anthropic_text(parsed)
+        try:
+            return _extract_anthropic_text(parsed)
+        except RuntimeError as exc:
+            raise _wrap_provider_error(provider, model, url, exc) from exc
 
     if provider == "google":
         key = api_key.strip()
@@ -238,6 +251,9 @@ def run_chat_completion(
         if system_text:
             payload["systemInstruction"] = {"parts": [{"text": system_text}]}
         parsed = _request_json(url, headers, payload, timeout_sec)
-        return _extract_google_text(parsed)
+        try:
+            return _extract_google_text(parsed)
+        except RuntimeError as exc:
+            raise _wrap_provider_error(provider, model, url, exc) from exc
 
     raise ValueError(f"Unsupported provider: {provider}")

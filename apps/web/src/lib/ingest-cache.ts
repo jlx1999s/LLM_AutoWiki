@@ -17,6 +17,40 @@ interface CacheData {
   entries: Record<string, CacheEntry> // keyed by source filename
 }
 
+function normalizeSourceKey(source: string): string {
+  const normalized = normalizePath(source)
+  const slash = normalized.lastIndexOf("/")
+  return (slash >= 0 ? normalized.slice(slash + 1) : normalized).toLowerCase()
+}
+
+function resolveWrittenPath(projectPath: string, recordedPath: string): string {
+  const normalized = normalizePath(recordedPath)
+  if (normalized.startsWith("/") || /^[A-Za-z]:\//.test(normalized)) {
+    return normalized
+  }
+  return `${normalizePath(projectPath)}/${normalized}`
+}
+
+async function fileExists(path: string): Promise<boolean> {
+  try {
+    await readFile(path)
+    return true
+  } catch {
+    return false
+  }
+}
+
+async function allWrittenFilesExist(projectPath: string, filesWritten: string[]): Promise<boolean> {
+  if (filesWritten.length === 0) return false
+  for (const recordedPath of filesWritten) {
+    const fullPath = resolveWrittenPath(projectPath, recordedPath)
+    if (!(await fileExists(fullPath))) {
+      return false
+    }
+  }
+  return true
+}
+
 async function sha256(content: string): Promise<string> {
   const encoder = new TextEncoder()
   const data = encoder.encode(content)
@@ -60,9 +94,13 @@ export async function checkIngestCache(
   if (!entry) return null
 
   const currentHash = await sha256(sourceContent)
-  if (entry.hash === currentHash) {
+  if (entry.hash === currentHash && await allWrittenFilesExist(projectPath, entry.filesWritten)) {
     return entry.filesWritten
   }
+  // Stale cache entry: source hash may match but generated files were deleted.
+  const newEntries = { ...cache.entries }
+  delete newEntries[sourceFileName]
+  await saveCache(projectPath, { entries: newEntries })
   return null
 }
 
@@ -95,6 +133,15 @@ export async function removeFromIngestCache(
 ): Promise<void> {
   const cache = await loadCache(projectPath)
   const newEntries = { ...cache.entries }
-  delete newEntries[sourceFileName]
-  await saveCache(projectPath, { entries: newEntries })
+  const target = normalizeSourceKey(sourceFileName)
+  let changed = false
+  for (const key of Object.keys(newEntries)) {
+    if (normalizeSourceKey(key) === target) {
+      delete newEntries[key]
+      changed = true
+    }
+  }
+  if (changed) {
+    await saveCache(projectPath, { entries: newEntries })
+  }
 }

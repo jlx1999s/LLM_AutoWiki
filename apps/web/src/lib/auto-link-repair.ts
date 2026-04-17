@@ -24,6 +24,11 @@ export interface AutoLinkRepairStats {
   unresolved: UnresolvedLink[]
 }
 
+export interface AutoLinkRepairOptions {
+  createStubs?: boolean
+  replaceUnresolvedWithText?: boolean
+}
+
 function flattenMdFiles(nodes: FileNode[]): FileNode[] {
   const files: FileNode[] = []
   for (const node of nodes) {
@@ -77,9 +82,12 @@ function escapeQuote(value: string): string {
 export async function autoRepairWikiLinks(
   projectPath: string,
   sourceFileName: string,
+  options: AutoLinkRepairOptions = {},
 ): Promise<AutoLinkRepairStats> {
   const pp = normalizePath(projectPath)
   const wikiRoot = `${pp}/wiki`
+  const createStubs = options.createStubs ?? true
+  const replaceUnresolvedWithText = options.replaceUnresolvedWithText ?? false
 
   const registry = await rebuildLinkRegistry(pp)
   const lookup = buildLinkLookup(registry.entries)
@@ -128,6 +136,12 @@ export async function autoRepairWikiLinks(
       const entry = lookup.get(key)
       if (!entry) {
         unresolvedCount.set(rawTarget, (unresolvedCount.get(rawTarget) ?? 0) + 1)
+        if (replaceUnresolvedWithText) {
+          changed = true
+          linksRewritten += 1
+          const display = String(displayPart ?? "").replace(/^\|/, "").trim()
+          return display || rawTarget
+        }
         return full
       }
 
@@ -156,43 +170,45 @@ export async function autoRepairWikiLinks(
   const date = new Date().toISOString().slice(0, 10)
   const stubPaths: string[] = []
 
-  for (const [target] of unresolvedCount) {
-    if (!shouldCreateStub(target)) continue
-    const fileName = sanitizeStubFileName(target)
-    const relativeStubPath = `wiki/concepts/${fileName}.md`
-    const fullStubPath = `${pp}/${relativeStubPath}`
+  if (createStubs) {
+    for (const [target] of unresolvedCount) {
+      if (!shouldCreateStub(target)) continue
+      const fileName = sanitizeStubFileName(target)
+      const relativeStubPath = `wiki/concepts/${fileName}.md`
+      const fullStubPath = `${pp}/${relativeStubPath}`
 
-    try {
-      await readFile(fullStubPath)
-      continue
-    } catch {
-      // expected when stub does not exist
-    }
+      try {
+        await readFile(fullStubPath)
+        continue
+      } catch {
+        // expected when stub does not exist
+      }
 
-    const stubContent = [
-      "---",
-      "type: concept",
-      `title: "${escapeQuote(target)}"`,
-      `created: ${date}`,
-      `updated: ${date}`,
-      'tags: ["auto-generated", "stub"]',
-      "related: []",
-      `sources: ["${escapeQuote(sourceFileName)}"]`,
-      `aliases: ["${escapeQuote(target)}"]`,
-      "---",
-      "",
-      `# ${target}`,
-      "",
-      "This page was auto-created to resolve wikilinks.",
-      "Please replace this stub with full content.",
-      "",
-    ].join("\n")
+      const stubContent = [
+        "---",
+        "type: concept",
+        `title: "${escapeQuote(target)}"`,
+        `created: ${date}`,
+        `updated: ${date}`,
+        'tags: ["auto-generated", "stub"]',
+        "related: []",
+        `sources: ["${escapeQuote(sourceFileName)}"]`,
+        `aliases: ["${escapeQuote(target)}"]`,
+        "---",
+        "",
+        `# ${target}`,
+        "",
+        "This page was auto-created to resolve wikilinks.",
+        "Please replace this stub with full content.",
+        "",
+      ].join("\n")
 
-    try {
-      await writeFile(fullStubPath, stubContent)
-      stubPaths.push(relativeStubPath)
-    } catch {
-      // ignore stub write failures
+      try {
+        await writeFile(fullStubPath, stubContent)
+        stubPaths.push(relativeStubPath)
+      } catch {
+        // ignore stub write failures
+      }
     }
   }
 

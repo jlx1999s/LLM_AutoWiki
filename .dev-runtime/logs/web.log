@@ -1,0 +1,8 @@
+
+> llm-wiki@0.3.1 dev
+> vite --host 127.0.0.1 --port 5173
+
+
+  VITE v8.0.3  ready in 222 ms
+
+  ➜  Local:   http://127.0.0.1:5173/

@@ -113,6 +113,7 @@ function detectCommunities(
 }
 
 const WIKILINK_REGEX = /\[\[([^\]|]+?)(?:\|[^\]]+?)?\]\]/g
+const MARKDOWN_LINK_REGEX = /\[[^\]]+?\]\(([^)]+?)\)/g
 
 function flattenMdFiles(nodes: FileNode[]): FileNode[] {
   const files: FileNode[] = []
@@ -142,14 +143,74 @@ function extractType(content: string): string {
   return "other"
 }
 
+function extractFrontmatter(content: string): string {
+  const match = content.match(/^---\n([\s\S]*?)\n---\n?/)
+  return match ? match[1] : ""
+}
+
+function extractFrontmatterField(frontmatter: string, key: string): string | null {
+  if (!frontmatter) return null
+  const match = frontmatter.match(new RegExp(`^${key}:\\s*(.+)$`, "m"))
+  return match ? match[1].trim() : null
+}
+
+function extractArrayField(content: string, key: string): string[] {
+  const frontmatter = extractFrontmatter(content)
+  if (!frontmatter) return []
+
+  const inline = extractFrontmatterField(frontmatter, key)
+  if (inline && inline.startsWith("[") && inline.endsWith("]")) {
+    return inline
+      .slice(1, -1)
+      .split(",")
+      .map((s) => s.trim().replace(/^["']|["']$/g, ""))
+      .filter(Boolean)
+  }
+
+  const blockMatch = frontmatter.match(new RegExp(`^${key}:\\s*\\n((?:\\s*-\\s*.+\\n?)+)`, "m"))
+  if (!blockMatch?.[1]) return []
+  return blockMatch[1]
+    .split("\n")
+    .map((line) => line.match(/^\s*-\s*(.+)\s*$/)?.[1] ?? "")
+    .map((s) => s.trim().replace(/^["']|["']$/g, ""))
+    .filter(Boolean)
+}
+
+function normalizeLinkTarget(raw: string): string | null {
+  let target = raw.split("#")[0].trim()
+  if (!target) return null
+  if (target.startsWith("#")) return null
+  if (target.includes("://") || target.startsWith("mailto:")) return null
+
+  target = target
+    .replace(/\\/g, "/")
+    .replace(/^\.?\//, "")
+    .replace(/^wiki\//, "")
+    .replace(/\.md$/i, "")
+    .replace(/\/+/g, "/")
+    .replace(/^\/+/, "")
+
+  if (!target || target.includes("/../") || target.startsWith("../")) return null
+  return target
+}
+
 function extractWikilinks(content: string): string[] {
   const links: string[] = []
-  const regex = new RegExp(WIKILINK_REGEX.source, "g")
-  let match: RegExpExecArray | null
-  while ((match = regex.exec(content)) !== null) {
-    links.push(match[1].trim())
+  const wikiRegex = new RegExp(WIKILINK_REGEX.source, "g")
+  let wikiMatch: RegExpExecArray | null
+  while ((wikiMatch = wikiRegex.exec(content)) !== null) {
+    const normalized = normalizeLinkTarget(wikiMatch[1])
+    if (normalized) links.push(normalized)
   }
-  return links
+
+  const mdRegex = new RegExp(MARKDOWN_LINK_REGEX.source, "g")
+  let mdMatch: RegExpExecArray | null
+  while ((mdMatch = mdRegex.exec(content)) !== null) {
+    const normalized = normalizeLinkTarget(mdMatch[1])
+    if (normalized) links.push(normalized)
+  }
+
+  return Array.from(new Set(links))
 }
 
 function fileNameToId(fileName: string): string {
@@ -176,7 +237,7 @@ export async function buildWikiGraph(
   // Build a map of id -> node data
   const nodeMap = new Map<
     string,
-    { id: string; label: string; type: string; path: string; links: string[] }
+    { id: string; label: string; type: string; path: string; links: string[]; related: string[] }
   >()
 
   for (const file of mdFiles) {
@@ -195,6 +256,7 @@ export async function buildWikiGraph(
       type: extractType(content),
       path: file.path,
       links: extractWikilinks(content),
+      related: extractArrayField(content, "related"),
     })
   }
 
@@ -217,7 +279,8 @@ export async function buildWikiGraph(
   const rawEdges: GraphEdge[] = []
 
   for (const [sourceId, nodeData] of nodeMap) {
-    for (const targetRaw of nodeData.links) {
+    const targets = Array.from(new Set([...nodeData.links, ...nodeData.related]))
+    for (const targetRaw of targets) {
       // Normalize target: try matching by id (case-insensitive, hyphen/space)
       const targetId = resolveTarget(targetRaw, nodeMap)
       if (targetId === null) continue
@@ -289,15 +352,25 @@ function resolveTarget(
   raw: string,
   nodeMap: Map<string, { id: string }>,
 ): string | null {
+  const normalizedRaw = normalizeLinkTarget(raw) ?? raw
+  const normalizedBase = normalizedRaw.split("/").pop() ?? normalizedRaw
+
   // Direct match
-  if (nodeMap.has(raw)) return raw
+  if (nodeMap.has(normalizedRaw)) return normalizedRaw
+  if (nodeMap.has(normalizedBase)) return normalizedBase
 
   // Normalize: lowercase, replace spaces with hyphens and vice versa
-  const normalized = raw.toLowerCase().replace(/\s+/g, "-")
+  const normalized = normalizedRaw.toLowerCase().replace(/\s+/g, "-")
+  const normalizedBaseLower = normalizedBase.toLowerCase().replace(/\s+/g, "-")
   for (const id of nodeMap.keys()) {
     if (id.toLowerCase() === normalized) return id
-    if (id.toLowerCase() === raw.toLowerCase()) return id
+    if (id.toLowerCase() === normalizedBaseLower) return id
+    if (id.toLowerCase() === normalizedRaw.toLowerCase()) return id
+    if (id.toLowerCase() === normalizedBase.toLowerCase()) return id
     if (id.toLowerCase().replace(/\s+/g, "-") === normalized) return id
+    if (id.toLowerCase().replace(/\s+/g, "-") === normalizedBaseLower) return id
+    if (id.toLowerCase().endsWith(`/${normalized}`)) return id
+    if (id.toLowerCase().endsWith(`/${normalizedBaseLower}`)) return id
   }
 
   return null

@@ -27,14 +27,41 @@ function flattenMdFiles(nodes: FileNode[]): FileNode[] {
   return files
 }
 
+function normalizeLinkTarget(raw: string): string | null {
+  let target = raw.split("#")[0].trim()
+  if (!target) return null
+  if (target.startsWith("#")) return null
+  if (target.includes("://") || target.startsWith("mailto:")) return null
+
+  target = target
+    .replace(/\\/g, "/")
+    .replace(/^\.?\//, "")
+    .replace(/^wiki\//, "")
+    .replace(/\.md$/i, "")
+    .replace(/\/+/g, "/")
+    .replace(/^\/+/, "")
+
+  if (!target || target.includes("/../") || target.startsWith("../")) return null
+  return target
+}
+
 function extractWikilinks(content: string): string[] {
   const links: string[] = []
-  const regex = /\[\[([^\]|]+?)(?:\|[^\]]+?)?\]\]/g
-  let match: RegExpExecArray | null
-  while ((match = regex.exec(content)) !== null) {
-    links.push(match[1].trim())
+  const wikiRegex = /\[\[([^\]|]+?)(?:\|[^\]]+?)?\]\]/g
+  let wikiMatch: RegExpExecArray | null
+  while ((wikiMatch = wikiRegex.exec(content)) !== null) {
+    const normalized = normalizeLinkTarget(wikiMatch[1])
+    if (normalized) links.push(normalized)
   }
-  return links
+
+  const mdRegex = /\[[^\]]+?\]\(([^)]+?)\)/g
+  let mdMatch: RegExpExecArray | null
+  while ((mdMatch = mdRegex.exec(content)) !== null) {
+    const normalized = normalizeLinkTarget(mdMatch[1])
+    if (normalized) links.push(normalized)
+  }
+
+  return Array.from(new Set(links))
 }
 
 function relativeToSlug(relativePath: string): string {

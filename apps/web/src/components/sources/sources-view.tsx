@@ -8,9 +8,12 @@ import { useWikiStore } from "@/stores/wiki-store"
 import { copyFile, listDirectory, readFile, writeFile, deleteFile, findRelatedWikiPages, preprocessFile } from "@/commands/fs"
 import type { FileNode } from "@/types/wiki"
 import { startIngest } from "@/lib/ingest"
-import { enqueueIngest, enqueueBatch } from "@/lib/ingest-queue"
+import { enqueueIngest, enqueueBatch, getQueueSummary } from "@/lib/ingest-queue"
+import { removeFromIngestCache } from "@/lib/ingest-cache"
 import { useTranslation } from "react-i18next"
 import { normalizePath, getFileName } from "@/lib/path-utils"
+
+type ImportFeedbackTone = "muted" | "success" | "warning" | "error"
 
 export function SourcesView() {
   const { t } = useTranslation()
@@ -27,6 +30,8 @@ export function SourcesView() {
   const [orphanedSources, setOrphanedSources] = useState<string[]>([])
   const [importing, setImporting] = useState(false)
   const [ingestingPath, setIngestingPath] = useState<string | null>(null)
+  const [queueSnapshot, setQueueSnapshot] = useState(() => getQueueSummary())
+  const [importFeedback, setImportFeedback] = useState<{ tone: ImportFeedbackTone; text: string } | null>(null)
 
   const loadSources = useCallback(async () => {
     if (!project) return
@@ -52,120 +57,208 @@ export function SourcesView() {
     loadSources()
   }, [loadSources, dataVersion])
 
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setQueueSnapshot(getQueueSummary())
+    }, 1000)
+    return () => clearInterval(interval)
+  }, [])
+
+  function setFeedback(text: string, tone: ImportFeedbackTone = "muted") {
+    setImportFeedback({ text, tone })
+  }
+
+  function queueStatusText(
+    summary: { pending: number; processing: number; failed: number; total: number } = queueSnapshot,
+  ) {
+    const done = summary.total - summary.pending - summary.processing
+    return `队列 ${done}/${summary.total}（处理中 ${summary.processing}，等待 ${summary.pending}，失败 ${summary.failed}）`
+  }
+
   async function handleImport() {
     if (!project) return
 
-    const selected = await open({
-      multiple: true,
-      title: "Import Source Files",
-      filters: [
-        {
-          name: "Documents",
-          extensions: [
-            "md", "mdx", "txt", "rtf", "pdf",
-            "html", "htm", "xml",
-            "doc", "docx", "xls", "xlsx", "ppt", "pptx",
-            "odt", "ods", "odp", "epub", "pages", "numbers", "key",
-          ],
-        },
-        {
-          name: "Data",
-          extensions: ["json", "jsonl", "csv", "tsv", "yaml", "yml", "ndjson"],
-        },
-        {
-          name: "Code",
-          extensions: [
-            "py", "js", "ts", "jsx", "tsx", "rs", "go", "java",
-            "c", "cpp", "h", "rb", "php", "swift", "sql", "sh",
-          ],
-        },
-        {
-          name: "Images",
-          extensions: ["png", "jpg", "jpeg", "gif", "webp", "svg", "bmp", "tiff", "avif", "heic"],
-        },
-        {
-          name: "Media",
-          extensions: ["mp4", "webm", "mov", "avi", "mkv", "mp3", "wav", "ogg", "flac", "m4a"],
-        },
-        { name: "All Files", extensions: ["*"] },
-      ],
-    })
-
-    if (!selected || selected.length === 0) return
-
-    setImporting(true)
-    const pp = normalizePath(project.path)
-    const paths = Array.isArray(selected) ? selected : [selected]
-
-    const importedPaths: string[] = []
-    const skippedDuplicates: string[] = []
-    const existingNames = new Set(flattenAllFileNames(sources).map((n) => n.toLowerCase()))
-    for (const sourcePath of paths) {
-      const originalName = getFileName(sourcePath) || "unknown"
-      const normalizedName = originalName.toLowerCase()
-      if (existingNames.has(normalizedName)) {
-        skippedDuplicates.push(originalName)
-        continue
-      }
-      const destPath = await getUniqueDestPath(`${pp}/raw/sources`, originalName)
-      try {
-        await copyFile(sourcePath, destPath)
-        importedPaths.push(destPath)
-        existingNames.add(normalizedName)
-        // Pre-process file (extract text from PDF, etc.) for instant preview later
-        preprocessFile(destPath).catch(() => {})
-      } catch (err) {
-        console.error(`Failed to import ${originalName}:`, err)
-      }
+    setFeedback("正在打开文件选择器…")
+    let selected: string | string[] | null = null
+    try {
+      selected = await open({
+        multiple: true,
+        title: "Import Source Files",
+        filters: [
+          {
+            name: "Documents",
+            extensions: [
+              "md", "mdx", "txt", "rtf", "pdf",
+              "html", "htm", "xml",
+              "doc", "docx", "xls", "xlsx", "ppt", "pptx",
+              "odt", "ods", "odp", "epub", "pages", "numbers", "key",
+            ],
+          },
+          {
+            name: "Data",
+            extensions: ["json", "jsonl", "csv", "tsv", "yaml", "yml", "ndjson"],
+          },
+          {
+            name: "Code",
+            extensions: [
+              "py", "js", "ts", "jsx", "tsx", "rs", "go", "java",
+              "c", "cpp", "h", "rb", "php", "swift", "sql", "sh",
+            ],
+          },
+          {
+            name: "Images",
+            extensions: ["png", "jpg", "jpeg", "gif", "webp", "svg", "bmp", "tiff", "avif", "heic"],
+          },
+          {
+            name: "Media",
+            extensions: ["mp4", "webm", "mov", "avi", "mkv", "mp3", "wav", "ogg", "flac", "m4a"],
+          },
+          { name: "All Files", extensions: ["*"] },
+        ],
+      })
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : String(err)
+      setFeedback(`打开文件选择器失败：${reason}`, "error")
+      return
     }
 
-    setImporting(false)
-    await loadSources()
+    if (!selected || selected.length === 0) {
+      setFeedback("未选择文件，导入已取消。")
+      return
+    }
+
+    const pp = normalizePath(project.path)
+    const paths = Array.isArray(selected) ? selected : [selected]
+    const hasProviderReady =
+      Boolean(llmConfig.apiKey?.trim()) ||
+      llmConfig.provider === "ollama" ||
+      llmConfig.provider === "custom"
+    const hasModelReady = Boolean(llmConfig.model?.trim())
+    const autoIngestEnabled = hasProviderReady && hasModelReady
+
+    setImporting(true)
+    setFeedback("正在导入文件，请稍候…")
+    const importedPaths: string[] = []
+    const skippedDuplicates: string[] = []
+    const importErrors: string[] = []
+    const existingNames = new Set(flattenAllFileNames(sources).map((n) => n.toLowerCase()))
+    try {
+      for (const sourcePath of paths) {
+        const originalName = getFileName(sourcePath) || "unknown"
+        const normalizedName = originalName.toLowerCase()
+        if (existingNames.has(normalizedName)) {
+          skippedDuplicates.push(originalName)
+          continue
+        }
+        const destPath = await getUniqueDestPath(`${pp}/raw/sources`, originalName)
+        try {
+          await copyFile(sourcePath, destPath)
+          importedPaths.push(destPath)
+          existingNames.add(normalizedName)
+          // Pre-process file (extract text from PDF, etc.) for instant preview later
+          preprocessFile(destPath).catch(() => {})
+        } catch (err) {
+          const reason = err instanceof Error ? err.message : String(err)
+          importErrors.push(`${originalName}: ${reason}`)
+          console.error(`Failed to import ${originalName}:`, err)
+        }
+      }
+    } finally {
+      setImporting(false)
+      await loadSources()
+    }
 
     if (skippedDuplicates.length > 0) {
       const preview = skippedDuplicates.slice(0, 3).join(", ")
-      window.alert(
-        `Skipped ${skippedDuplicates.length} duplicate file(s) (same filename already exists): ${preview}${skippedDuplicates.length > 3 ? " ..." : ""}`
+      setFeedback(
+        `跳过 ${skippedDuplicates.length} 个同名文件：${preview}${skippedDuplicates.length > 3 ? " ..." : ""}`,
+        "warning",
       )
     }
-    if (importedPaths.length === 0) return
+    if (importedPaths.length === 0) {
+      if (importErrors.length > 0) {
+        const detail = importErrors.slice(0, 2).join("\n")
+        setFeedback(`没有成功导入文件：${detail}${importErrors.length > 2 ? " ..." : ""}`, "error")
+      }
+      return
+    }
 
     // Enqueue for serial ingest (runs in background via ingest queue)
     let queuedCount = 0
-    if (llmConfig.apiKey || llmConfig.provider === "ollama" || llmConfig.provider === "custom") {
+    const enqueueErrors: string[] = []
+    if (autoIngestEnabled) {
       for (const destPath of importedPaths) {
         try {
           await enqueueIngest(pp, destPath)
           queuedCount += 1
         } catch (err) {
+          const reason = err instanceof Error ? err.message : String(err)
+          enqueueErrors.push(`${getFileName(destPath)}: ${reason}`)
           console.error(`Failed to enqueue ingest:`, err)
         }
       }
       if (queuedCount > 0) {
         setChatExpanded(true)
         setActiveView("wiki")
-        window.alert(`Imported ${importedPaths.length} file(s), queued ${queuedCount} for analysis.`)
+        const failedQueue = importedPaths.length - queuedCount
+        const queueNote = failedQueue > 0 ? `，${failedQueue} 个未入队` : ""
+        const importFailNote = importErrors.length > 0 ? `，${importErrors.length} 个导入失败` : ""
+        const latestQueue = getQueueSummary()
+        setQueueSnapshot(latestQueue)
+        setFeedback(
+          `已导入 ${importedPaths.length} 个文件，已入队 ${queuedCount} 个${queueNote}${importFailNote}。${queueStatusText(latestQueue)}`,
+          failedQueue > 0 ? "warning" : "success",
+        )
+      } else {
+        const detail = enqueueErrors.slice(0, 2).join("\n")
+        setFeedback(
+          `导入了 ${importedPaths.length} 个文件，但入队失败。请检查 LLM 设置/网络后手动 Ingest。${detail}${enqueueErrors.length > 2 ? " ..." : ""}`,
+          "error",
+        )
       }
     } else {
-      window.alert(`Imported ${importedPaths.length} file(s). Configure LLM in Settings, then click Ingest manually.`)
+      const missing: string[] = []
+      if (!hasProviderReady) missing.push("API Key/Provider")
+      if (!hasModelReady) missing.push("Model")
+      const reason = missing.length > 0 ? `（缺少 ${missing.join(" + ")}）` : ""
+      const importFailNote = importErrors.length > 0 ? `，${importErrors.length} 个导入失败` : ""
+      setFeedback(
+        `已导入 ${importedPaths.length} 个文件${importFailNote}。当前未自动入队${reason}，请在 Settings 完成配置后手动 Ingest。`,
+        "warning",
+      )
     }
   }
 
   async function handleImportFolder() {
     if (!project) return
 
-    const selected = await open({
-      directory: true,
-      title: "Import Source Folder",
-    })
+    setFeedback("正在打开文件夹选择器…")
+    let selected: string | string[] | null = null
+    try {
+      selected = await open({
+        directory: true,
+        title: "Import Source Folder",
+      })
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : String(err)
+      setFeedback(`打开文件夹选择器失败：${reason}`, "error")
+      return
+    }
 
     if (!selected || typeof selected !== "string") return
 
-    setImporting(true)
     const pp = normalizePath(project.path)
     const folderName = getFileName(selected) || "imported"
     const destDir = `${pp}/raw/sources/${folderName}`
+    const hasProviderReady =
+      Boolean(llmConfig.apiKey?.trim()) ||
+      llmConfig.provider === "ollama" ||
+      llmConfig.provider === "custom"
+    const hasModelReady = Boolean(llmConfig.model?.trim())
+    const autoIngestEnabled = hasProviderReady && hasModelReady
 
+    setImporting(true)
+    setFeedback("正在导入文件夹，请稍候…")
     try {
       // Recursively copy the folder
       const copiedFiles: string[] = await invoke("copy_directory", {
@@ -184,7 +277,7 @@ export function SourcesView() {
       await loadSources()
 
       // Build ingest tasks with folder context
-      if (llmConfig.apiKey || llmConfig.provider === "ollama" || llmConfig.provider === "custom") {
+      if (autoIngestEnabled) {
         const tasks = copiedFiles
           .filter((fp) => {
             const ext = fp.split(".").pop()?.toLowerCase() ?? ""
@@ -208,12 +301,23 @@ export function SourcesView() {
           console.log(`[Folder Import] Enqueued ${tasks.length} files for ingest`)
           setChatExpanded(true)
           setActiveView("wiki")
-          window.alert(`Imported folder and queued ${tasks.length} file(s) for analysis.`)
+          const latestQueue = getQueueSummary()
+          setQueueSnapshot(latestQueue)
+          setFeedback(`已导入文件夹并入队 ${tasks.length} 个文件。${queueStatusText(latestQueue)}`, "success")
+        } else {
+          setFeedback(`已导入文件夹（${copiedFiles.length} 个文件），但未发现可分析文本文件。`, "warning")
         }
+      } else {
+        const missing: string[] = []
+        if (!hasProviderReady) missing.push("API Key/Provider")
+        if (!hasModelReady) missing.push("Model")
+        const reason = missing.length > 0 ? `（缺少 ${missing.join(" + ")}）` : ""
+        setFeedback(`已导入文件夹（${copiedFiles.length} 个文件）。当前不自动入队${reason}，请在 Settings 完成配置后手动 Ingest。`, "warning")
       }
     } catch (err) {
       console.error(`Failed to import folder:`, err)
       setImporting(false)
+      setFeedback(`导入文件夹失败：${err instanceof Error ? err.message : String(err)}`, "error")
     }
   }
 
@@ -247,6 +351,13 @@ export function SourcesView() {
         await deleteFile(`${pp}/raw/sources/.cache/${fileName}.txt`)
       } catch {
         // cache file may not exist
+      }
+
+      // Step 3.5: Invalidate ingest cache for this source.
+      try {
+        await removeFromIngestCache(pp, fileName)
+      } catch {
+        // non-critical
       }
 
       // Step 4: Delete or update related wiki pages
@@ -426,6 +537,24 @@ export function SourcesView() {
       </div>
 
       <ScrollArea className="flex-1">
+        {importFeedback && (
+          <div
+            className={[
+              "mx-3 mt-3 rounded-md border px-3 py-2 text-xs",
+              importFeedback.tone === "success" && "border-emerald-500/40 bg-emerald-500/10 text-emerald-700",
+              importFeedback.tone === "warning" && "border-amber-500/40 bg-amber-500/10 text-amber-700",
+              importFeedback.tone === "error" && "border-destructive/40 bg-destructive/10 text-destructive",
+              importFeedback.tone === "muted" && "border-border bg-muted/40 text-muted-foreground",
+            ].filter(Boolean).join(" ")}
+          >
+            {importFeedback.text}
+          </div>
+        )}
+        {queueSnapshot.total > 0 && (
+          <div className="mx-3 mt-3 rounded-md border border-border bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
+            {queueStatusText()}
+          </div>
+        )}
         {sources.length === 0 && orphanedSources.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-3 p-8 text-center text-sm text-muted-foreground">
             <p>{t("sources.noSources")}</p>

@@ -1,0 +1,9 @@
+INFO:     Will watch for changes in these directories: ['/Users/jinlingxiao/Desktop/LLM_AutoWiki/backend']
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     Started reloader process [40448] using WatchFiles
+INFO:     Started server process [40474]
+INFO:     Waiting for application startup.
+2026-04-18 00:45:19,469 INFO [alembic.runtime.migration] Context impl SQLiteImpl.
+2026-04-18 00:45:19,469 INFO [alembic.runtime.migration] Will assume non-transactional DDL.
+INFO  [alembic.runtime.migration] Context impl SQLiteImpl.
+INFO  [alembic.runtime.migration] Will assume non-transactional DDL.

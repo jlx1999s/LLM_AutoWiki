@@ -249,6 +249,26 @@ export async function restoreQueue(projectPath: string): Promise<void> {
 
 const MAX_RETRIES = 3
 
+function isRetryableIngestError(message: string): boolean {
+  const lower = message.toLowerCase()
+  const nonRetryablePatterns = [
+    "not found",
+    "invalid api key",
+    "unauthorized",
+    "forbidden",
+    "model not configured",
+    "llm not configured",
+    "upstream http 400",
+    "upstream http 401",
+    "upstream http 403",
+    "upstream http 404",
+    "/api/llm/chat",
+    "source appears empty or unreadable",
+    "quality gate failed",
+  ]
+  return !nonRetryablePatterns.some((p) => lower.includes(p))
+}
+
 async function processNext(projectPath: string): Promise<void> {
   if (processing) return
 
@@ -319,12 +339,14 @@ async function processNext(projectPath: string): Promise<void> {
   } catch (err) {
     currentAbortController = null
     const message = err instanceof Error ? err.message : String(err)
+    const retryable = isRetryableIngestError(message)
     next.retryCount++
     next.error = message
 
-    if (next.retryCount >= MAX_RETRIES) {
+    if (!retryable || next.retryCount >= MAX_RETRIES) {
       next.status = "failed"
-      console.log(`[Ingest Queue] Failed (${next.retryCount}x): ${next.sourcePath} — ${message}`)
+      const reason = retryable ? `${next.retryCount}x` : "non-retryable"
+      console.log(`[Ingest Queue] Failed (${reason}): ${next.sourcePath} — ${message}`)
     } else {
       next.status = "pending" // will retry
       console.log(`[Ingest Queue] Error (retry ${next.retryCount}/${MAX_RETRIES}): ${next.sourcePath} — ${message}`)

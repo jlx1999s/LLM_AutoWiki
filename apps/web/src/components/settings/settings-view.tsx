@@ -193,7 +193,7 @@ export function SettingsView() {
                   }
                 />
                 <p className="text-xs text-muted-foreground">
-                  For security, API keys are session-only and are not saved to disk.
+                  API keys are saved locally on this device and restored after restart.
                 </p>
               </div>
             )}
@@ -286,7 +286,7 @@ export function SettingsView() {
                   placeholder="Enter your Tavily API key (tavily.com)"
                 />
                 <p className="text-xs text-muted-foreground">
-                  For security, this key is session-only and is not saved to disk.
+                  This key is saved locally on this device and restored after restart.
                 </p>
               </div>
             )}

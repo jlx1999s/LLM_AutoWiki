@@ -48,6 +48,13 @@ export async function streamChat(
     const payload = await response.json().catch(() => ({}))
     if (!response.ok) {
       const detail = payload?.detail ? String(payload.detail) : `HTTP ${response.status}`
+      if (response.status === 404 && detail === "Not Found") {
+        onError(new Error(
+          `LLM endpoint not found at ${apiBase}/api/llm/chat. ` +
+          "Backend may be outdated or not restarted. Please restart backend and retry.",
+        ))
+        return
+      }
       onError(new Error(detail))
       return
     }

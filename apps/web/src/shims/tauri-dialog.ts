@@ -21,6 +21,74 @@ interface ProjectOption {
   path: string
 }
 
+function pickFilesFromBrowser(options: OpenOptions): Promise<File[] | null> {
+  return new Promise((resolve) => {
+    const input = document.createElement("input")
+    input.type = "file"
+    input.multiple = !!options.multiple
+    input.tabIndex = -1
+    input.style.position = "fixed"
+    input.style.left = "-9999px"
+    input.style.width = "1px"
+    input.style.height = "1px"
+    input.style.opacity = "0"
+
+    if (options.filters?.length) {
+      const exts = options.filters
+        .flatMap((f) => f.extensions ?? [])
+        .filter((ext) => ext && ext !== "*")
+        .map((ext) => (ext.startsWith(".") ? ext : `.${ext}`))
+      if (exts.length) {
+        input.accept = Array.from(new Set(exts)).join(",")
+      }
+    }
+
+    let settled = false
+    let focusFallbackTimer: number | null = null
+
+    const finalize = (files: File[] | null) => {
+      if (settled) return
+      settled = true
+      if (focusFallbackTimer !== null) {
+        window.clearTimeout(focusFallbackTimer)
+      }
+      window.removeEventListener("focus", onWindowFocus, true)
+      input.removeEventListener("change", onChange)
+      input.removeEventListener("cancel", onCancel as EventListener)
+      if (input.parentElement) {
+        input.parentElement.removeChild(input)
+      }
+      resolve(files)
+    }
+
+    const onChange = () => {
+      const files = Array.from(input.files ?? [])
+      finalize(files.length > 0 ? files : null)
+    }
+
+    const onCancel = () => finalize(null)
+
+    // Some environments do not fire "cancel" reliably.
+    // When native picker closes and window refocuses, resolve if no selection came back.
+    const onWindowFocus = () => {
+      if (settled) return
+      focusFallbackTimer = window.setTimeout(() => {
+        const files = Array.from(input.files ?? [])
+        finalize(files.length > 0 ? files : null)
+      }, 350)
+    }
+
+    input.addEventListener("change", onChange, { once: true })
+    input.addEventListener("cancel", onCancel as EventListener, { once: true })
+    window.addEventListener("focus", onWindowFocus, true)
+    document.body.appendChild(input)
+
+    window.setTimeout(() => {
+      input.click()
+    }, 0)
+  })
+}
+
 async function invokeBridge<T>(command: string, args: Record<string, unknown> = {}): Promise<T> {
   const defaultBackend = `${window.location.protocol}//${window.location.hostname || "127.0.0.1"}:8000`
   const apiBase =
@@ -116,27 +184,8 @@ export async function open(options: OpenOptions = {}): Promise<string | string[]
     if (!picked) return null
     inputs = [picked]
   } else {
-    // File import flow: use real browser picker instead of manual path typing.
-    const picked = await new Promise<File[] | null>((resolve) => {
-      const input = document.createElement("input")
-      input.type = "file"
-      input.multiple = !!options.multiple
-      if (options.filters?.length) {
-        const exts = options.filters
-          .flatMap((f) => f.extensions ?? [])
-          .filter((ext) => ext && ext !== "*")
-          .map((ext) => (ext.startsWith(".") ? ext : `.${ext}`))
-        if (exts.length) {
-          input.accept = Array.from(new Set(exts)).join(",")
-        }
-      }
-      input.onchange = () => {
-        const files = Array.from(input.files ?? [])
-        resolve(files.length ? files : null)
-      }
-      input.oncancel = () => resolve(null)
-      input.click()
-    })
+    // File import flow: use browser picker with robust cancel/focus fallback.
+    const picked = await pickFilesFromBrowser(options)
     if (!picked) return null
     inputs = registerPickedFiles(picked)
   }

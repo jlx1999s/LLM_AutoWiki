@@ -268,6 +268,19 @@ function parsePageInfo(path: string, fileName: string, content: string): WikiPag
     else if (path.includes("/comparisons/")) type = "comparison"
     else if (path.includes("/synthesis/")) type = "synthesis"
     else if (fileName === "overview.md") type = "overview"
+    else {
+      // Legacy tolerance: classify non-frontmatter pages by semantic hints,
+      // so historical imports do not collapse into "Other".
+      const lower = content.toLowerCase()
+      const lowerTitle = title.toLowerCase()
+      const sourceHints = ["指南", "source", "来源", "原文", "paper", "report", "白皮书"]
+      const entityHints = ["患者", "人群", "组织", "医院", "机构", "organization", "company"]
+      const conceptHints = ["定义", "概念", "术语", "机制", "原则", "方法", "诊断", "治疗"]
+
+      if (sourceHints.some((k) => lower.includes(k) || lowerTitle.includes(k))) type = "source"
+      else if (entityHints.some((k) => lower.includes(k) || lowerTitle.includes(k))) type = "entity"
+      else if (conceptHints.some((k) => lower.includes(k) || lowerTitle.includes(k))) type = "concept"
+    }
   }
 
   return { path, title, type, tags, origin }

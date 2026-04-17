@@ -43,60 +43,36 @@ const LLM_CONFIG_KEY = "llmConfig"
 
 export async function saveLlmConfig(config: LlmConfig): Promise<void> {
   const store = await getStore()
-  await store.set(LLM_CONFIG_KEY, {
-    ...config,
-    apiKey: "",
-  })
+  await store.set(LLM_CONFIG_KEY, config)
 }
 
 export async function loadLlmConfig(): Promise<LlmConfig | null> {
   const store = await getStore()
-  const cfg = (await store.get<LlmConfig>(LLM_CONFIG_KEY)) ?? null
-  if (!cfg) return null
-  if (cfg.apiKey) {
-    await store.set(LLM_CONFIG_KEY, { ...cfg, apiKey: "" })
-  }
-  return { ...cfg, apiKey: "" }
+  return (await store.get<LlmConfig>(LLM_CONFIG_KEY)) ?? null
 }
 
 const SEARCH_API_KEY = "searchApiConfig"
 
 export async function saveSearchApiConfig(config: SearchApiConfig): Promise<void> {
   const store = await getStore()
-  await store.set(SEARCH_API_KEY, {
-    ...config,
-    apiKey: "",
-  })
+  await store.set(SEARCH_API_KEY, config)
 }
 
 export async function loadSearchApiConfig(): Promise<SearchApiConfig | null> {
   const store = await getStore()
-  const cfg = (await store.get<SearchApiConfig>(SEARCH_API_KEY)) ?? null
-  if (!cfg) return null
-  if (cfg.apiKey) {
-    await store.set(SEARCH_API_KEY, { ...cfg, apiKey: "" })
-  }
-  return { ...cfg, apiKey: "" }
+  return (await store.get<SearchApiConfig>(SEARCH_API_KEY)) ?? null
 }
 
 const EMBEDDING_KEY = "embeddingConfig"
 
 export async function saveEmbeddingConfig(config: EmbeddingConfig): Promise<void> {
   const store = await getStore()
-  await store.set(EMBEDDING_KEY, {
-    ...config,
-    apiKey: "",
-  })
+  await store.set(EMBEDDING_KEY, config)
 }
 
 export async function loadEmbeddingConfig(): Promise<EmbeddingConfig | null> {
   const store = await getStore()
-  const cfg = (await store.get<EmbeddingConfig>(EMBEDDING_KEY)) ?? null
-  if (!cfg) return null
-  if (cfg.apiKey) {
-    await store.set(EMBEDDING_KEY, { ...cfg, apiKey: "" })
-  }
-  return { ...cfg, apiKey: "" }
+  return (await store.get<EmbeddingConfig>(EMBEDDING_KEY)) ?? null
 }
 
 export async function removeFromRecentProjects(
